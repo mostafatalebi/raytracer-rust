@@ -1,16 +1,18 @@
-use std::any::Any;
-use std::collections::HashMap;
 use crate::buffer::types::BufferIndex;
 use crate::common::constants::EPS;
 use crate::common::params::{Params, Value};
 use crate::shader::shader::ShaderEnum;
 use crate::vector::vec3f::Vec3f;
+use std::any::Any;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub enum CollisionTestType {
+pub enum RayType {
     #[default]
     CameraRay,
     ShadowRay,
+    ReflectionRay,
+    RefractionRay,
 }
 
 /// this is an important type that holds
@@ -29,59 +31,59 @@ pub enum CollisionTestType {
 /// memory_buffer is also a simple storage for shaders to interacet
 /// with, in case their computation involves some data look up
 #[derive(Clone, Debug)]
-pub struct RayCollision {
+pub struct RayContext {
+    pub camera_position: Vec3f,
     pub ray_dir: Vec3f,
     // where the ray starts its journey (camera, another object, etc.)
     pub origin_coordinate: Vec3f,
     // used only for camera rays (not shadow rays)
     pub pixel_coordinate: Option<Vec3f>,
     pub buffer_index: Option<BufferIndex>,
-    pub collided_object_index: Option<usize>,
-    pub collided_face_index:   Option<usize>,
-    pub collided_face_normal:         Option<Vec3f>,
-    pub collided_face_vertex_normal:  Option<Vec3f>,
-    pub collided: bool,
-    pub collision_coordinate: Vec3f,
-    pub ever_collided: bool,
+    pub intersected_object_index: Option<usize>,
+    pub intersected_face_index: Option<usize>,
+    pub intersected_face_normal: Option<Vec3f>,
+    pub intersected_face_vertex_normal: Option<Vec3f>,
+    pub intersected: bool,
+    pub intersection_coordinate: Vec3f,
+    pub ever_intersected: bool,
     pub next_object_index: Option<usize>,
     pub shader_index: usize,
-    pub collision_distance: f64,
+    pub intersection_distance: f64,
     pub extra_params: Params,
     pub memory_buffer: Params,
     pub previous_closest_distance: f64,
     pub obj_receive_shadow: bool,
-    pub test_type: CollisionTestType,
+    pub ray_type: RayType,
     pub is_in_shadow: bool,
 }
 
-impl RayCollision {
-
-    pub fn new_for_camera_ray(origin: &Vec3f, buffer_index: Option<BufferIndex>) -> RayCollision {
-        let mut rc = RayCollision::default();
+impl RayContext {
+    pub fn new_for_camera_ray(origin: &Vec3f, buffer_index: Option<BufferIndex>) -> RayContext {
+        let mut rc = RayContext::default();
 
         rc.origin_coordinate = origin.clone();
-        rc.test_type = CollisionTestType::CameraRay;
+        rc.ray_type = RayType::CameraRay;
         rc.buffer_index = buffer_index;
         rc.shader_index = usize::MAX;
-        rc.collided_object_index = None;
-        rc.collided_face_index = None;
+        rc.intersected_object_index = None;
+        rc.intersected_face_index = None;
 
         rc
     }
-    pub fn new_for_shadow_ray(origin: &Vec3f) -> RayCollision {
-        let mut rc = RayCollision::default();
+    pub fn new_for_shadow_ray(origin: &Vec3f) -> RayContext {
+        let mut rc = RayContext::default();
         rc.origin_coordinate = origin.clone();
-        rc.test_type = CollisionTestType::ShadowRay;
+        rc.ray_type = RayType::ShadowRay;
         rc.buffer_index = None;
         rc.shader_index = usize::MAX;
-        rc.collided_object_index = None;
-        rc.collided_face_index = None;
+        rc.intersected_object_index = None;
+        rc.intersected_face_index = None;
         rc.previous_closest_distance = f64::MAX;
         rc
     }
 
     pub fn reset_for_next_iteration(&mut self, obj_index: usize, receive_shadow: bool) {
-        self.collided = false;
+        self.intersected = false;
         self.next_object_index = Some(obj_index);
         self.obj_receive_shadow = receive_shadow;
     }
@@ -90,70 +92,96 @@ impl RayCollision {
         self.memory_buffer.set(key, value);
     }
 
-    pub fn get_from_memory(&mut self, key: String, value: Value) -> Option<&Value> {
+    pub fn get_from_memory(&mut self, key: &str, value: Value) -> Option<&Value> {
         self.memory_buffer.get(key)
     }
 
-    pub fn copy_from(&mut self, other: &RayCollision) {
-        self.collided_object_index = other.collided_object_index;
-        self.collided_face_index = other.collided_face_index;
-        self.shader_index = other.shader_index;
-        self.buffer_index = other.buffer_index.clone();
-        self.collision_distance = other.collision_distance;
-        self.collision_coordinate = other.collision_coordinate.clone();
-        self.extra_params = other.extra_params.clone();
-        self.memory_buffer = other.memory_buffer.clone();
-    }
 
-    pub fn has_collided(&self) -> bool {
-        self.collided
+    pub fn has_ever_intersected(&self) -> bool {
+        self.ever_intersected
     }
-
-    pub fn has_ever_collided(&self) -> bool {
-        self.ever_collided
-    }
-
 
     pub fn reset_for_a_new_test(&mut self) {
-        self.collided = false;
-        self.collision_distance = 0.0;
-        self.collision_coordinate = Vec3f::default();
+        self.intersected = false;
+        self.intersection_distance = 0.0;
+        self.intersection_coordinate = Vec3f::default();
+    }
+
+    pub fn is_closest_so_far(&self, curr_dist: f64) -> bool {
+        curr_dist > EPS && curr_dist < self.previous_closest_distance
+    }
+
+    pub fn is_camera_ray(&self) -> bool {
+        self.ray_type == RayType::CameraRay
+    }
+
+    pub fn is_shadow_ray(&self) -> bool {
+        self.ray_type == RayType::CameraRay
+    }
+    pub fn is_reflection_ray(&self) -> bool {
+        self.ray_type == RayType::ReflectionRay
+    }
+
+    pub fn is_refraction_ray(&self) -> bool {
+        self.ray_type == RayType::RefractionRay
+    }
+
+    pub fn update_intersection(
+        &mut self,
+        obj_index: Option<usize>,
+        face_index: Option<usize>,
+        face_normal: Option<Vec3f>,
+        dist: f64,
+        inters_crd: Vec3f,
+    ) -> &mut Self {
+        self.previous_closest_distance = dist;
+        self.intersection_coordinate = inters_crd;
+        self.intersection_distance = dist;
+        self.intersected_object_index = obj_index;
+        self.intersected_face_index = face_index;
+        self.intersected_face_normal = face_normal;
+        // self.intersected_face_vertex_normal = None;
+        self.intersected = true;
+
+        if !self.ever_intersected {
+            self.ever_intersected = true;
+        }
+
+        self
+
     }
 }
 
-
-
-impl PartialEq for RayCollision {
+impl PartialEq for RayContext {
     fn eq(&self, other: &Self) -> bool {
         self == other
     }
 }
 
-impl Default for RayCollision {
+impl Default for RayContext {
     fn default() -> Self {
-        let mut rc = RayCollision {
+        RayContext {
+            camera_position: Default::default(),
             ray_dir: Default::default(),
             origin_coordinate: Default::default(),
             pixel_coordinate: None,
             buffer_index: None,
-            collided_object_index: None,
-            collided_face_index: None,
-            collided_face_normal: None,
-            collided_face_vertex_normal: None,
+            intersected_object_index: None,
+            intersected_face_index: None,
+            intersected_face_normal: None,
+            intersected_face_vertex_normal: None,
             next_object_index: None,
             shader_index: 0,
-            collision_distance: 0.0,
-            collision_coordinate: Default::default(),
+            intersection_distance: 0.0,
+            intersection_coordinate: Default::default(),
             extra_params: Default::default(),
             memory_buffer: Default::default(),
-            collided: false,
-            ever_collided: false,
+            intersected: false,
+            ever_intersected: false,
             previous_closest_distance: f64::INFINITY,
             obj_receive_shadow: false,
-            test_type: CollisionTestType::default(),
+            ray_type: RayType::default(),
             is_in_shadow: false,
-        };
-
-        rc
+        }
     }
 }

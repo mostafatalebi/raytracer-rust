@@ -4,9 +4,9 @@ use crate::common::dummy_utils::pick_random_color;
 use crate::error::error::SysError;
 use crate::error::kinds::ErrorKind;
 use crate::light::light::LightEnum;
-use crate::ray::types::RayCollision;
+use crate::ray::types::RayContext;
 use crate::shader::shader::BaseShader;
-use crate::vector::colors::{NormalizedColor, Rgba};
+use crate::vector::colors::{Color, NColor3};
 use crate::vector::constants::WHITE;
 #[derive(Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct FaceShader {
@@ -15,8 +15,8 @@ pub struct FaceShader {
     opacity: f32,
 
     #[serde(skip)]
-    random_color: Vec<Rgba>,
-    cached_color_per_face: HashMap<String, Rgba>
+    random_color: Vec<NColor3>,
+    cached_color_per_face: HashMap<String, NColor3>
 }
 
 impl FaceShader {
@@ -47,7 +47,7 @@ impl BaseShader for FaceShader {
         self.id.clone()
     }
 
-    fn compute(&self, collision: &RayCollision, lights: &LightEnum) -> Result<NormalizedColor, SysError> {
+    fn compute(&self, collision: &RayContext, lights: &LightEnum) -> Result<NColor3, SysError> {
         // let key = format!("object::{oid:?}::face::{fid:?}", oid=collision.collided_object_index, fid=collision.collided_face_index);
         // if collision.collided_object_index.is_none()  {
         //     return Err(SysError::new_str(ErrorKind::GeometryNotFound, "object id not found"))
@@ -74,7 +74,7 @@ impl BaseShader for FaceShader {
         // }
         //
         //
-        Ok(WHITE.to_normalized_color())
+        Ok(Color::r_to_n(&WHITE))
     }
 
 

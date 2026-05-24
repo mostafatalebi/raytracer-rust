@@ -1,14 +1,28 @@
 use serde::{Deserialize, Serialize};
+use crate::common::params::Params;
 use crate::common::transform::Transform;
 use crate::vector::types::{Vec3i, Vector};
 use crate::scene::render_attributes::RenderAttributes;
 use crate::vector::vec3f::Vec3f;
 
-#[derive(Deserialize, Serialize, Default, Clone)]
+#[derive(Deserialize, Serialize, Default, Clone, PartialEq, Debug)]
 pub enum GeometryType {
     #[serde(rename = "polygon")]
     #[default]
     Polygon,
+
+    #[serde(rename = "procedural")]
+    Procedural,
+}
+
+#[derive(Deserialize, Serialize, Default, Clone, PartialEq, Debug)]
+pub enum GeometrySubType {
+    #[serde(rename = "sphere")]
+    #[default]
+    Sphere,
+
+    #[serde(rename = "cube")]
+    Cube,
 }
 
 #[derive(Deserialize, Serialize, Default, Clone)]
@@ -25,11 +39,15 @@ pub struct GeometryData {
 
     // vertex normals computed on the fly
     pub vertex_normals:  Vec<Vec3f>,
+
+    #[serde(skip)]
+    pub params: Params,
 }
 
 #[derive(Deserialize, Serialize, Default, Clone)]
 pub struct Geometry {
     pub geometry_type: GeometryType,
+    pub geometry_subtype: GeometrySubType,
     pub id: String,
     pub transform: Transform,
     pub render_attributes: RenderAttributes,
@@ -51,10 +69,16 @@ impl Geometry {
     }
 
     pub fn calc_all_normals(&mut self) {
+        if self.geometry_type != GeometryType::Polygon {
+            return;
+        }
         self.calc_face_normals();
         self.compute_vertices_normals();
     }
     pub fn calc_face_normals(&mut self) {
+        if self.geometry_type != GeometryType::Polygon {
+            return;
+        }
         self.data.face_normals = vec![Vec3f::default(); self.data.faces.len()];
         for face in self.data.faces.iter().enumerate() {
             self.data.face_normals[face.0] = self.calc_single_face_normal(&face.1);
@@ -75,6 +99,9 @@ impl Geometry {
     /// are ready. Face normals either are computed using calc_face_normals()
     /// or imported externally or inserted manually.
     pub fn compute_vertices_normals(&mut self) {
+        if self.geometry_type != GeometryType::Polygon {
+            return;
+        }
         let mut v_normals = vec![Vec3f::default(); self.data.vertices.len()];
         for face in self.data.faces.iter().enumerate() {
             let vn = self.data.face_normals[face.0];
@@ -92,29 +119,3 @@ impl Geometry {
 }
 
 
-#[derive(Default)]
-pub struct Plane {
-    pub id: String,
-    pub width: f64,
-    pub height: f64,
-    pub transform: Transform,
-}
-
-impl Plane {
-    pub fn new() -> Plane {
-        Plane{
-            // @todo must grab from a global ID generator
-            id: "plane_".to_string(),
-            width: 1.0,
-            height: 1.0,
-            transform: Transform::default(),
-        }
-    }
-
-    pub fn new_with_translation(translation: Vec3f) -> Plane {
-        let mut plane = Plane::new();
-        plane.transform.local.translate = translation;
-
-        plane
-    }
-}

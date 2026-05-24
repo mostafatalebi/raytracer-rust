@@ -1,5 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use crate::vector::colors::{Color, NColor3};
 use crate::vector::constants::BLACK;
+use crate::vector::vec3f::Vec3f;
 use crate::vector::vec4f::Vec4f;
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -32,12 +34,12 @@ pub struct GeometryShadowAttributes {
     pub receive: bool,
 
     // a color that can multiply the shadow color
-    pub color: Vec4f,
+    pub color: NColor3,
 }
 
 impl Default for GeometryShadowAttributes {
     fn default() -> Self {
-        GeometryShadowAttributes{cast: true, receive: true, color: BLACK}
+        GeometryShadowAttributes{cast: true, receive: true, color: Color::r_to_n(&BLACK)}
     }
 }
 

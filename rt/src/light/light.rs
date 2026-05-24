@@ -3,8 +3,8 @@ use crate::common::transform::Transform;
 use crate::light::ambient_light::AmbientLight;
 use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
-use crate::ray::types::RayCollision;
-use crate::vector::colors::Rgba;
+use crate::ray::types::RayContext;
+use crate::vector::colors::{NColor3};
 use crate::vector::vec3f::Vec3f;
 
 #[typetag::serde]
@@ -15,13 +15,13 @@ pub trait BaseLight {
 
     fn get_attenuated_intensity(&self, dist: &Vec3f) -> f64;
 
-    fn compute_light(&self, rc: &RayCollision, dir: &Vec3f) -> Option<Rgba>;
+    fn compute_light(&self, rc: &RayContext, dir: &Vec3f) -> Option<NColor3>;
 
     fn get_displacement_vector(&self, from: &Vec3f) -> Vec3f;
 
     fn get_transform(&self) -> Transform;
 
-    fn supports_shadow(&self) -> bool;
+    fn can_cast_shadow(&self) -> bool;
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -54,7 +54,7 @@ impl BaseLight for LightEnum {
         }
     }
 
-    fn compute_light(&self, rc: &RayCollision, dir: &Vec3f) -> Option<Rgba> {
+    fn compute_light(&self, rc: &RayContext, dir: &Vec3f) -> Option<NColor3> {
         match self {
             LightEnum::PointLight(light) => light.compute_light(rc, dir),
             LightEnum::DirectionalLight(light) => light.compute_light(rc, dir),
@@ -85,11 +85,11 @@ impl BaseLight for LightEnum {
         }
     }
 
-    fn supports_shadow(&self) -> bool {
+    fn can_cast_shadow(&self) -> bool {
         match self {
-            LightEnum::PointLight(light) => light.supports_shadow(),
-            LightEnum::DirectionalLight(light) => light.supports_shadow(),
-            LightEnum::AmbientLight(light) => light.supports_shadow(),
+            LightEnum::PointLight(light) => light.can_cast_shadow(),
+            LightEnum::DirectionalLight(light) => light.can_cast_shadow(),
+            LightEnum::AmbientLight(light) => light.can_cast_shadow(),
         }
     }
 }
@@ -97,19 +97,19 @@ impl BaseLight for LightEnum {
 
 #[derive(Default, Deserialize, Serialize, Clone)]
 pub struct Shadow {
-    enable: bool,
+    pub enable: bool,
 
     // Not for the first version
     // controls how [non] grainy the
     // final shadow is rendered. More samples
     // means longer render time but cleaner [feathered] edges
-    samples: i8,
+    pub samples: i8,
 
     // Not for the first version
     // controls the size of the light source
     // and affects shadow softness. Larger light sources
     // create softer shadows
-    radius: i32,
+    pub radius: i32,
 }
 
 impl Shadow {

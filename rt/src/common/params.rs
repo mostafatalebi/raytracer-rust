@@ -4,13 +4,13 @@ use crate::vector::vec4f::Vec4f;
 
 #[derive(Default, Debug, Clone)]
 pub struct Value {
-    num_int: i64,
-    num_float: f64,
-    str: String,
-    bool: bool,
-    vec: Vec<Value>,
-    v_vec3f: Option<Vec3f>,
-    v_vec4f: Option<Vec4f>,
+    pub v_i64: i64,
+    pub v_f64: f64,
+    pub v_str: String,
+    pub v_bool: bool,
+    pub v_vec: Option<Vec<Value>>,
+    pub v_vec3f: Option<Vec3f>,
+    pub v_vec4f: Option<Vec4f>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -30,7 +30,28 @@ impl Params {
         self.values.insert(k, v);
     }
 
-    pub fn get(&mut self, k: String) -> Option<&Value> {
-        self.values.get(&k)
+    pub fn get(&self, k: &str) -> Option<&Value> {
+        self.values.get(k)
+    }
+}
+
+impl Value {
+    pub fn from_f64(f: f64) -> Value {
+        let mut v = Value::default();
+        v.v_f64 = f;
+
+        v
+    }
+    pub fn from_i64(i: i64) -> Value {
+        let mut v = Value::default();
+        v.v_i64 = i;
+
+        v
+    }
+    pub fn from_bool(b: bool) -> Value {
+        let mut v = Value::default();
+        v.v_bool = b;
+
+        v
     }
 }

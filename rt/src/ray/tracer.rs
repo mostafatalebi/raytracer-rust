@@ -4,17 +4,19 @@ use crate::camera::camera::StandardCamera;
 use crate::common::constants::EPS;
 use crate::error::error::SysError;
 use crate::error::kinds::ErrorKind;
-use crate::object::geometry::Geometry;
-use crate::ray::types::RayCollision;
+use crate::object::geometry::{Geometry, GeometrySubType};
+use crate::ray::types::RayContext;
 use crate::scene::scene::Scene;
 use crate::shader::shader::BaseShader;
 use crate::vector::arithmetic::VectorArithmetic;
-use crate::vector::colors::{NormalizedColor, Rgba};
+use crate::vector::colors::{Color, NColor3};
 use crate::vector::types::{Vec3i, Vector};
 use crate::vector::vec3f::Vec3f;
 use std::sync::{Arc, Mutex, RwLock};
 use crate::light::light::{BaseLight, LightEnum};
-use crate::ray::types::CollisionTestType::{CameraRay, ShadowRay};
+use crate::object::geometry::GeometryType::{Polygon, Procedural};
+use crate::object::procedural::get_sphere_normal;
+use crate::ray::types::RayType::{CameraRay, ShadowRay};
 use crate::vector::constants::BLACK;
 
 pub struct Tracer {
@@ -37,37 +39,38 @@ impl Default for Tracer {
     }
 }
 impl Tracer {
-    pub fn walk_pixel_by_pixel<F: Fn(BufferIndex, &Vec3f, &mut Buffer, &Arc<RwLock<Scene>>)>(
+    pub fn walk_pixel_by_pixel(
         &self,
         buffer: &mut Buffer,
         cam: &StandardCamera,
         s: &Arc<RwLock<Scene>>,
-        f: F,
     ) -> Buffer {
         let mut pixel = buffer.get_next_pixel_indices();
         let mut output_buffer = Buffer::new(buffer.x, buffer.y);
         while pixel.is_some() {
             let buffer_index = pixel.unwrap();
 
-            let pixel_coordinate =
-                cam.get_pixel_coordinates(buffer_index[1] as i64, buffer_index[2] as i64);
+            let pixel_coordinate = cam.get_pixel_coordinates(buffer_index[1] as i64, buffer_index[2] as i64);
+            let mut rc = RayContext::new_for_camera_ray(
+                &cam.transform.local.translate,
+                Some(buffer_index),
+            );
+            rc.camera_position = cam.transform.local.translate;
+            rc.pixel_coordinate = Some(pixel_coordinate);
+            rc.ray_dir = (&rc.pixel_coordinate.unwrap() - &rc.origin_coordinate).normalized();
+            self.process_ray_for_objects(&mut rc, &mut output_buffer, s);
 
-            f(buffer_index, &pixel_coordinate, &mut output_buffer, s);
+
             pixel = buffer.get_next_pixel_indices();
         }
         output_buffer
     }
 
-    pub fn walk_scene_objects<
-        Shoot: Fn(&Geometry, &mut RayCollision),
-        OnClosestCollision: Fn(&mut RayCollision, &mut Buffer, &Arc<RwLock<Scene>>),
-    >(
+    pub fn process_ray_for_objects(
         &self,
-        mut rc: &mut RayCollision,
+        mut rc: &mut RayContext,
         output: &mut Buffer,
         s: &Arc<RwLock<Scene>>,
-        object_ray_collision_test: Shoot,
-        on_closest_collision: OnClosestCollision,
     ) {
         let geometries: Vec<Geometry>;
         {
@@ -77,57 +80,60 @@ impl Tracer {
 
         for ref obj in geometries.iter().enumerate() {
             rc.reset_for_next_iteration(obj.0, obj.1.render_attributes.shadows.receive);
-            object_ray_collision_test(obj.1, &mut rc)
+
+
+            if let Ok(()) = self.trace_single_ray(&obj.1, &mut rc) {
+                // yet nothing
+            }
         }
 
-        if rc.has_ever_collided() {
-            on_closest_collision(rc, output, s);
+        if rc.has_ever_intersected() {
+            if let Some(normalized_color) =
+                self.on_ray_target_intersection(&mut rc, s)
+            {
+                output.save_pixel_color(
+                    rc.buffer_index.clone().unwrap()[0],
+                    Color::n_to_r(&normalized_color.to_4()),
+                );
+            }
         }
     }
 
-    pub fn walk_scene_lights<
-        Shoot: Fn(&Geometry, &mut RayCollision),
-        OnNoCollision: Fn(&RayCollision, &Arc<RwLock<Scene>>),
-    >(
+    pub fn trace_from_camera_to_scene(
         &self,
-        light: &LightEnum,
-        mut rc: &mut RayCollision,
-        s: &Arc<RwLock<Scene>>,
-        object_ray_collision_test: Shoot,
-        on_no_collision: OnNoCollision,
-    ) {
-        let scene = s.read().unwrap();
+        input_buffer: &mut Buffer,
+        cam: &StandardCamera,
+        s: Arc<RwLock<Scene>>,
+    ) -> Result<Buffer, SysError> {
 
-        let point_to_light_vector = light.get_displacement_vector(&rc.collision_coordinate);
-        rc.ray_dir = point_to_light_vector.normalized();
+        let output = self.walk_pixel_by_pixel(
+            input_buffer,
+            &cam,
+            &s
+        );
 
-        for ref obj in scene.geometries.iter().enumerate() {
-            rc.reset_for_next_iteration(obj.0, obj.1.render_attributes.shadows.receive);
-            object_ray_collision_test(obj.1, &mut rc)
-        }
-
-        if rc.has_ever_collided() == false {
-            on_no_collision(rc, s);
-        }
+        Ok(output)
     }
 
-    pub fn callback_object_iteration(&self, obj: &Geometry, mut ray_collision: &mut RayCollision) {
-        if let Ok(()) = self.trace_single_ray(&obj, &mut ray_collision) {
+
+
+    pub fn callback_object_iteration(&self, obj: &Geometry, mut ray_intersection: &mut RayContext) {
+        if let Ok(()) = self.trace_single_ray(&obj, &mut ray_intersection) {
             // yet nothing
         }
     }
 
-    pub fn callback_on_ray_object_collision(
+    pub fn on_ray_target_intersection(
         &self,
-        mut rc: &mut RayCollision,
+        mut rc: &mut RayContext,
         s: &Arc<RwLock<Scene>>,
-    ) -> Option<Rgba> {
+    ) -> Option<NColor3> {
         let scene = s.read().unwrap();
-        if rc.collided_object_index.is_none() {
+        if rc.intersected_object_index.is_none() {
             panic!("object id is null")
         }
 
-        let material_name = scene.geometries[rc.collided_object_index.unwrap()]
+        let material_name = scene.geometries[rc.intersected_object_index.unwrap()]
             .render_attributes
             .material_name
             .clone();
@@ -136,11 +142,11 @@ impl Tracer {
 
         match shader {
             Some(ref mut ss) => {
-                let mut main_point_color = NormalizedColor::default();
+                let mut main_point_color = NColor3::default();
                 for light in &scene.lights {
-                    if rc.obj_receive_shadow {
-                        let acneless_shadow_origin = rc.collision_coordinate.add_with(&rc.collided_face_normal.unwrap().multiply_scalar(0.001));
-                        let mut rc_shadow = RayCollision::new_for_shadow_ray(&acneless_shadow_origin);
+                    if rc.obj_receive_shadow && light.can_cast_shadow() {
+                        let acneless_shadow_origin = rc.intersection_coordinate.add_with(&rc.intersected_face_normal.unwrap().multiply_scalar(0.001));
+                        let mut rc_shadow = RayContext::new_for_shadow_ray(&acneless_shadow_origin);
 
                         match self.trace_rays_for_shadows(&light, &mut rc_shadow, s) {
                             Err(err) => {
@@ -157,8 +163,17 @@ impl Tracer {
                                         }
                                     }
                                 } else {
-                                    main_point_color += BLACK.to_normalized_color()
+                                    main_point_color += Color::r_to_n(&BLACK)
                                 }
+                            }
+                        }
+                    } else {
+                        match ss.1.compute(&rc, &light) {
+                            Ok(color) => {
+                                main_point_color += color
+                            },
+                            Err(err) => {
+                                panic!("an error occurred when calculating the shader's shadow: {:?}", err)
                             }
                         }
                     }
@@ -170,22 +185,22 @@ impl Tracer {
     }
 
 
-    pub fn trace_rays_for_shadows(&self, light: &LightEnum, mut rc: &mut RayCollision, sc: &Arc<RwLock<Scene>>) -> Result<(), SysError> {
-        if light.supports_shadow() == false {
+    pub fn trace_rays_for_shadows(&self, light: &LightEnum, mut rc: &mut RayContext, sc: &Arc<RwLock<Scene>>) -> Result<(), SysError> {
+        if light.can_cast_shadow() == false {
             rc.is_in_shadow = false;
             return Ok(());
         }
-        let light_to_point_vector = light.get_displacement_vector(&rc.collision_coordinate);
+        let light_to_point_vector = light.get_displacement_vector(&rc.intersection_coordinate);
         rc.ray_dir = light_to_point_vector.normalized();
         let distance_to_light = light_to_point_vector.magnitude();
         let scene = sc.read().unwrap();
-        rc.collided = false;
+        rc.intersected = false;
         rc.is_in_shadow = false;
         rc.previous_closest_distance = distance_to_light;
         for obj in scene.geometries.iter().enumerate() {
             match self.trace_single_ray(&obj.1, &mut rc) {
                 Ok(()) => {
-                    if rc.collided == true {
+                    if rc.intersected == true {
                         rc.is_in_shadow = true;
                         return Ok(());
                     }
@@ -198,70 +213,31 @@ impl Tracer {
         Ok(())
     }
 
-    // starts from the scene and loads the camera, lights and objects
-    // Iterates through every single pixel of the camera and shoots ray,
-    // through each individual object to further render them (or not)
-    pub fn trace_from_camera_to_scene(
-        &self,
-        input_buffer: &mut Buffer,
-        cam: &StandardCamera,
-        s: Arc<RwLock<Scene>>,
-    ) -> Result<Buffer, SysError> {
 
-        let output = self.walk_pixel_by_pixel(
-            input_buffer,
-            &cam,
-            &s,
-            |pixel_index: BufferIndex, pixel_coordinate: &Vec3f,
-             mut output_buffer: &mut Buffer,
-             s: &Arc<RwLock<Scene>>| {
-                let mut rc = RayCollision::new_for_camera_ray(
-                    &cam.transform.local.translate,
-                    Some(pixel_index),
-                );
-                rc.pixel_coordinate = Some(*pixel_coordinate);
-                rc.ray_dir = (&rc.pixel_coordinate.unwrap() - &rc.origin_coordinate).normalized();
-                self.walk_scene_objects(
-                    &mut rc,
-                    &mut output_buffer,
-                    &s,
-                    |obj: &Geometry, mut ray_collision: &mut RayCollision| {
-                        self.callback_object_iteration(obj, &mut ray_collision);
-                    },
-                    |mut ray_collision: &mut RayCollision, output: &mut Buffer, sc: &Arc<RwLock<Scene>>| {
-                        if let Some(normalized_color) =
-                            self.callback_on_ray_object_collision(&mut ray_collision, sc)
-                        {
-                            output.save_pixel_color(
-                                ray_collision.buffer_index.clone().unwrap()[0],
-                                normalized_color.to_rgba(),
-                            );
-                        }
-                    },
-                );
-            },
-        );
-
-        Ok(output)
+    pub fn trace_single_ray(&self, obj: &Geometry, rc: &mut RayContext) -> Result<(), SysError> {
+        if obj.geometry_type == Polygon {
+            _ = self.try_over_faces(
+                &obj.data.faces,
+                &obj.data.vertices,
+                &obj.data.face_normals,
+                &obj.data.vertices,
+                rc,
+            )
+        } else if obj.geometry_type == Procedural {
+            _ = self.try_over_procedural(obj, rc);
+        } else {
+            return Err(SysError::new_str(ErrorKind::GeometryTypeUndefined, "cannot understand the geometry type"))
+        }
+        Ok(())
     }
 
-    pub fn trace_single_ray(&self, obj: &Geometry, rc: &mut RayCollision) -> Result<(), SysError> {
-        self.try_ray_intersect(
-            &obj.data.faces,
-            &obj.data.vertices,
-            &obj.data.face_normals,
-            &obj.data.vertices,
-            rc,
-        )
-    }
-
-    pub fn try_ray_intersect(
+    pub fn try_over_faces(
         &self,
         faces: &Vec<Vec3i>,
         vertices: &Vec<Vec3f>,
         face_normals: &Vec<Vec3f>,
         vertices_normals: &Vec<Vec3f>,
-        rc: &mut RayCollision,
+        rc: &mut RayContext,
     ) -> Result<(), SysError> {
         for kv in faces.iter().enumerate() {
             let mut face_coordinates: Vec<&Vec3f> = Vec::new();
@@ -278,34 +254,40 @@ impl Tracer {
             if let Some(c) =
                 self.shoot_ray_to_planar_triangle(&rc.origin_coordinate, &rc.ray_dir, &face_coordinates)
             {
-                if rc.test_type == CameraRay  && ( c.0 > EPS && c.0 < rc.previous_closest_distance) {
-                    rc.previous_closest_distance = c.0;
-                    rc.collision_distance = c.0;
-                    rc.collision_coordinate = c.1;
-                    rc.collided_face_index = Some(kv.0);
-                    rc.collided_object_index = rc.next_object_index;
-                    rc.collided_face_normal = Some(face_normals[kv.0]);
-                    rc.collided_face_vertex_normal = Some(vertices_normals[kv.1[0] as usize]);
-                    rc.collided = true;
-                    if !rc.ever_collided {
-                        rc.ever_collided = true;
-                    }
-                } else if rc.test_type == ShadowRay && (c.0 < rc.previous_closest_distance) {
-                    rc.collision_distance = c.0;
-                    rc.collision_coordinate = c.1;
-                    rc.collided_face_index = Some(kv.0);
-                    rc.collided_object_index = rc.next_object_index;
-                    rc.collided_face_normal = Some(face_normals[kv.0]);
-                    rc.collided_face_vertex_normal = Some(vertices_normals[kv.1[0] as usize]);
-                    rc.collided = true;
-                    return Ok(())
-
-                    // @todo for area light, we need to continue sampling also for soft shadows
+                if  rc.is_closest_so_far(c.0) {
+                    rc.update_intersection(rc.next_object_index, Some(kv.0), Some(face_normals[kv.0]), c.0, c.1);
                 }
             }
         }
         Ok(())
     }
+
+    pub fn try_over_procedural(&self, geo: &Geometry, rc: &mut RayContext) -> Result<(), SysError> {
+        match geo.geometry_subtype.clone() {
+            GeometrySubType::Sphere => {
+                let r = geo.data.params.get("radius");
+                match r {
+                    Some(rr) => {
+
+                        if let Some(r_intr) = self.use_sphere_detection(&rc.origin_coordinate, &rc.ray_dir, &geo.transform.local.translate, rr.v_f64) {
+                            let normal = get_sphere_normal(&r_intr.1, &geo.transform.local.translate);
+                            _ = rc.update_intersection(rc.next_object_index, None, Some(normal), r_intr.0, r_intr.1);
+                        }
+
+                        Ok(())
+                    },
+                    None => {
+                        Err(SysError::new_str(ErrorKind::GeometryTypeUndefined, "proc. sphere doesn't have any radius"))
+                    }
+                }
+            }
+            _ => {
+                Err(SysError::new_str(ErrorKind::GeometryTypeUndefined, "cannot understand the procedural geometry's sub type"))
+            }
+        }
+
+    }
+
 
     pub fn shoot_ray_to_planar_triangle(
         &self,
@@ -313,8 +295,30 @@ impl Tracer {
         target: &Vec3f,
         face: &Vec<&Vec3f>,
     ) -> Option<(f64, Vec3f)> {
-        if let Some(intersection) = self.solve_equation(origin, &target, face) {
+        if let Some(intersection) = self.use_moller_trumbore(origin, &target, face) {
             return Some(intersection);
+        }
+        None
+    }
+
+
+    /// ray dir MUST be normalized before being passed to the function
+    /// returns (distance, intersection coordinate)
+    pub fn use_sphere_detection(&self, origin: &Vec3f, ray_dir: &Vec3f, sphere_center: &Vec3f, sphere_radius: f64) -> Option<(f64, Vec3f)> {
+        let ray_to_sphere = origin - sphere_center;
+        let a = 1.0_f64; // since squaring a normalized vector results in one (hence self.dot(self) = 1)
+        let b = &(2.0)*ray_to_sphere.dot(ray_dir);
+        let c = ray_to_sphere.dot(&ray_to_sphere) - sphere_radius*sphere_radius;
+
+        // this is essentially solving quadratic formula
+        let discrm = (b * b) - 4.0*c;
+        // in math formula, denominator is 2a, but since
+        // a is 1.0 (due to it being normalized and raised to
+        // the power of 2), we drop it
+        let distance = (-b - discrm.sqrt()) / 2.0;
+
+        if distance > 0.0 {
+            return Some((distance, origin+&ray_dir.multiply_scalar(distance)));
         }
         None
     }
@@ -323,17 +327,17 @@ impl Tracer {
     // hits a given triangle
     // In case the ray hits something, it returns the intersection point's coordinates
     // as well as the normalized distance scalar (known as t)
-    pub fn solve_equation(
+    pub fn use_moller_trumbore(
         &self,
         origin: &Vec3f,
-        d: &Vec3f,
+        ray_dir: &Vec3f,
         triangle: &Vec<&Vec3f>,
     ) -> Option<(f64, Vec3f)> {
         let e1 = triangle[1] - triangle[0];
         let e2 = triangle[2] - triangle[0];
         let s = origin - triangle[0];
 
-        let p = VectorArithmetic::cross3(d, &e2);
+        let p = VectorArithmetic::cross3(ray_dir, &e2);
         let a = VectorArithmetic::dot(&e1, &p);
         if a.abs() < EPS {
             return None;
@@ -345,14 +349,14 @@ impl Tracer {
             return None;
         }
         let q = VectorArithmetic::cross3(&s, &e1);
-        let v = f * (VectorArithmetic::dot(d, &q));
+        let v = f * (VectorArithmetic::dot(ray_dir, &q));
         if v < 0.0 || u + v > 1.0 {
             return None;
         }
         let t = f * VectorArithmetic::dot(&e2, &q);
 
         if t > 0.0 {
-            return Some((t, origin + &d.multiply_scalar(t)));
+            return Some((t, origin + &ray_dir.multiply_scalar(t)));
         }
 
         None
@@ -403,7 +407,7 @@ mod test {
         triangle.push(vx1);
         triangle.push(vx2);
         triangle.push(vx3);
-        let result = tracer.solve_equation(&cam_pos, &ray_dir, &triangle);
+        let result = tracer.use_moller_trumbore(&cam_pos, &ray_dir, &triangle);
         assert_ne!(None, result);
 
         let mut triangle: Vec<&Vec3f> = Vec::new();
@@ -413,7 +417,7 @@ mod test {
         triangle.push(vx1);
         triangle.push(vx2);
         triangle.push(vx3);
-        let result = tracer.solve_equation(&cam_pos, &ray_dir, &triangle);
+        let result = tracer.use_moller_trumbore(&cam_pos, &ray_dir, &triangle);
         assert_eq!(None, result);
     }
 

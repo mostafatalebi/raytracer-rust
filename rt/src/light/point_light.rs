@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use crate::common::transform::Transform;
+use crate::common::types::NormalizedF;
 use crate::light::types::{Attenuation, POINT_LIGHT};
 use crate::light::light::{BaseLight, Shadow};
-use crate::light::types::Attenuation::Flat;
-use crate::ray::types::RayCollision;
+use crate::ray::types::RayContext;
 use crate::vector::arithmetic::VectorArithmetic;
-use crate::vector::colors::{NormalizedColor, Rgba};
+use crate::vector::colors::{NColor3};
 use crate::vector::types::Vector;
 use crate::vector::vec3f::Vec3f;
 
@@ -14,7 +14,7 @@ pub struct PointLight {
     pub id: String,
     pub transform: Transform,
     pub intensity: f64,
-    pub color: NormalizedColor,
+    pub color: NColor3,
 
     pub attenuation_type: Attenuation,
 
@@ -48,12 +48,11 @@ impl BaseLight for PointLight {
         }
     }
 
-    fn compute_light(&self, rc: &RayCollision, dir: &Vec3f) -> Option<Rgba> {
+    fn compute_light(&self, rc: &RayContext, dir: &Vec3f) -> Option<NColor3> {
         let attenuated_intensity = self.get_attenuated_intensity(dir);
-        let dot = f64::max(0.0, VectorArithmetic::dot(&rc.collided_face_normal.unwrap(), dir));
-        let mut color = self.color.multiply_scalar(attenuated_intensity * dot);
-        color[3] = 1.0;
-        
+        let dot = f64::max(0.0, VectorArithmetic::dot(&rc.intersected_face_normal.unwrap(), dir));
+        let color = self.color.multiply_scalar(attenuated_intensity * dot);
+
         Some(color)
     }
 
@@ -66,21 +65,21 @@ impl BaseLight for PointLight {
         self.transform.clone()
     }
 
-    fn supports_shadow(&self) -> bool {
-        true
+    fn can_cast_shadow(&self) -> bool {
+        self.shadow_attributes.enable
     }
 }
 
 
 impl PointLight {
-    pub fn new(id: &str, intensity: f64, color: Rgba, atten: Attenuation) -> Self {
+    pub fn new(id: &str, intensity: f64, color: NColor3, attenuation: Attenuation) -> Self {
         Self {
             id: String::from(id),
             transform: Transform::default(),
             intensity,
             color,
-            attenuation_type: atten,
-            shadow_attributes: Default::default(),
+            attenuation_type: attenuation,
+            shadow_attributes: Shadow::default(),
         }
     }
 }

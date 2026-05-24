@@ -3,8 +3,8 @@ use crate::common::transform::Transform;
 use crate::light::types::{Attenuation, AMBIENT_LIGHT};
 use crate::light::light::BaseLight;
 use crate::light::types::Attenuation::Flat;
-use crate::ray::types::RayCollision;
-use crate::vector::colors::{NormalizedColor, Rgba};
+use crate::ray::types::RayContext;
+use crate::vector::colors::{NColor3};
 use crate::vector::types::Vector;
 use crate::vector::vec3f::Vec3f;
 
@@ -12,12 +12,12 @@ use crate::vector::vec3f::Vec3f;
 pub struct AmbientLight {
     id: String,
     intensity: f64,
-    color: Rgba,
+    color: NColor3,
     dir: Vec3f,
     attenuation_type: Attenuation,
     // since ambient returns the same
     // light intensity for all rays
-    _cached: Rgba,
+    _cached: NColor3,
 }
 
 
@@ -50,7 +50,7 @@ impl BaseLight for AmbientLight {
         }
     }
 
-    fn compute_light(&self, rc: &RayCollision, dir: &Vec3f) -> Option<NormalizedColor> {
+    fn compute_light(&self, rc: &RayContext, dir: &Vec3f) -> Option<NColor3> {
         Some(self._cached)
     }
 
@@ -62,13 +62,13 @@ impl BaseLight for AmbientLight {
         Transform::default()
     }
 
-    fn supports_shadow(&self) -> bool {
+    fn can_cast_shadow(&self) -> bool {
         false
     }
 }
 
 impl AmbientLight {
-    pub fn new(id: &str, intensity: f64, color: Rgba) -> Self {
+    pub fn new(id: &str, intensity: f64, color: NColor3) -> Self {
         let mut a  = Self {
             id: String::from(id),
             intensity, color,
@@ -77,7 +77,6 @@ impl AmbientLight {
             _cached: color.multiply_scalar(intensity)
         };
 
-        a._cached[3] = 1.0;
 
         a
     }

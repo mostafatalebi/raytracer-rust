@@ -1,16 +1,16 @@
 use serde::{Deserialize, Serialize};
 use crate::error::error::SysError;
 use crate::light::light::LightEnum;
-use crate::ray::types::RayCollision;
+use crate::ray::types::RayContext;
 use crate::shader::face_shader::FaceShader;
 use crate::shader::lambert::LambertShader;
 use crate::shader::phong::PhongShader;
-use crate::vector::colors::{NormalizedColor, Rgba};
+use crate::vector::colors::{NColor3};
 
 #[typetag::serde]
 pub trait BaseShader {
     fn get_id(&self) -> String;
-    fn compute(&self, collision: &RayCollision, lights: &LightEnum) -> Result<NormalizedColor, SysError>;
+    fn compute(&self, collision: &RayContext, lights: &LightEnum) -> Result<NColor3, SysError>;
 }
 
 #[derive(Deserialize, Serialize, Clone, PartialEq)]
@@ -34,7 +34,7 @@ impl BaseShader for ShaderEnum {
         }
     }
 
-    fn compute(&self, collision: &RayCollision, lights: &LightEnum) -> Result<Rgba, SysError> {
+    fn compute(&self, collision: &RayContext, lights: &LightEnum) -> Result<NColor3, SysError> {
         match self {
             ShaderEnum::Lambert(shader) => shader.compute(collision, lights),
             ShaderEnum::Phong(shader) => shader.compute(collision, lights),

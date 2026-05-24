@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use crate::common::transform::Transform;
 use crate::quaternion::quaternion::Quaternion;
 use crate::vector::constants::{WORLD_RIGHT, WORLD_UP, WORLD_Z};
-use crate::vector::types::{Vec2f, Vec2i, Vector};
+use crate::vector::types::{Vec2i, Vector};
 use crate::vector::utils::Utils;
+use crate::vector::vec2f::Vec2f;
 use crate::vector::vec3f::Vec3f;
 
 #[typetag::serde]

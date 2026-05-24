@@ -1,7 +1,7 @@
-use std::ops::{Div, Index, IndexMut, Mul, Sub};
+use std::ops::{Index, IndexMut, Mul, Sub};
 use crate::common::constants::EPS;
-use crate::vector::types::{Vec2f, Vec2i, Vector};
-use crate::vector::vec3f::Vec3f;
+use crate::vector::types::{Vec2i, Vector};
+use crate::vector::vec2f::Vec2f;
 
 pub struct Utils {}
 
@@ -44,6 +44,7 @@ impl Utils {
 #[cfg(test)]
 mod tests {
     use crate::vector::types::SENSOR_SIZE_35;
+    use crate::vector::vec3f::Vec3f;
     use super::*;
 
     #[test]

@@ -6,7 +6,7 @@ use crate::error::kinds::ErrorKind::BadSceneDescription;
 use crate::index::index::IndexOfEntities;
 use crate::light::light::{LightEnum};
 use crate::object::geometry::{Geometry};
-use crate::ray::types::RayCollision;
+use crate::ray::types::RayContext;
 use crate::scene::metadata::Metadata;
 use crate::scene::render_settings::RenderSettings;
 use crate::shader::shader::{BaseShader, ShaderEnum};

@@ -1,22 +1,26 @@
 use crate::camera::camera::StandardCamera;
+use crate::common::helpers::create_sphere;
 use crate::light::ambient_light::AmbientLight;
 use crate::light::light::LightEnum;
 use crate::light::point_light::PointLight;
 use crate::light::types::Attenuation;
 use crate::object::geometry::Geometry;
+use crate::object::procedural::create_procedural_sphere;
 use crate::scene::render_settings::RenderSettings;
 use crate::scene::scene::Scene;
 use crate::shader::lambert::LambertShader;
+use crate::shader::phong::PhongShader;
 use crate::shader::shader::{BaseShader, ShaderEnum};
-use crate::vector::constants::{CAST_DAY, GRAY, SKY_BLUE, WHITE, WORLD_UP};
+use crate::vector::colors::Color;
+use crate::vector::constants::{CAST_DAY, CYAN, FAINT_BLUE_WHITE, FAINT_GREEN, GRAY, MAGENTA, SKY_BLUE, SUN, WHITE, WORLD_UP};
 use crate::vector::types::{Vec2i, Vec3i, Vector, SENSOR_SQUARE_66};
 use crate::vector::vec3f::Vec3f;
 
 pub fn get_lights_and_multi_objects_scene() -> Scene {
     let mut s = Scene::default();
 
-    let width = 500;
-    let height = 500;
+    let width = 1500;
+    let height = 1500;
 
     let mut cube = Geometry::default();
     cube.id = "cube_01".to_string();
@@ -43,10 +47,23 @@ pub fn get_lights_and_multi_objects_scene() -> Scene {
     cube.data.faces.push(Vec3i::new(4, 0, 1));
     cube.data.faces.push(Vec3i::new(3, 2, 6));
     cube.data.faces.push(Vec3i::new(3, 6, 7));
-
-
     cube.calc_all_normals();
-    let mut lambert = ShaderEnum::Lambert(LambertShader::new("lambert_01", GRAY.to_normalized_color()));
+
+
+    let mut lambert = ShaderEnum::Lambert(LambertShader::new("lambert_01", Color::r_to_n(&GRAY), 1.0));
+    let mut lambert_green = ShaderEnum::Lambert(LambertShader::new("lambert_green", Color::r_to_n(&FAINT_GREEN), 1.0));
+    let mut spec_color = Color::r_to_n(&WHITE);
+    let mut phong = ShaderEnum::Phong(PhongShader::new("phong_01", Color::r_to_n(&MAGENTA), 1.0, 0.5, spec_color, 1.0));
+
+
+    let mut sphere = create_procedural_sphere(Vec3f::new(0.0,0.0,0.0), 5.0);
+
+
+    sphere.transform.move_local(-15.0, 0.0, 0.0);
+    sphere.apply_transformations();
+    sphere.assign_shader(&phong.get_id());
+    s.geometries.push(sphere);
+
     cube.assign_shader(&lambert.get_id());
     let mut plane = Geometry::default();
     plane.id = "plane_01".to_string();
@@ -60,19 +77,20 @@ pub fn get_lights_and_multi_objects_scene() -> Scene {
 
     plane.calc_all_normals();
 
-    plane.assign_shader(&lambert.get_id());
+    plane.assign_shader(&lambert_green.get_id());
     plane.transform.move_local(0.0,-5.0,-18.0);
     plane.transform.scale_local(2.0,1.0,1.0);
     plane.apply_transformations();
 
 
-    let mut point_light = PointLight::new("point_light_1", 0.8, SKY_BLUE.to_normalized_color(), Attenuation::Linear);
-    point_light.transform.move_local(5.0, 30.0, -10.0);
+    let mut point_light = PointLight::new("point_light_1", 0.8, Color::r_to_n(&FAINT_BLUE_WHITE), Attenuation::Linear);
+    point_light.transform.move_local(5.0, 30.0, 20.0);
 
-    let mut point_light2 = PointLight::new("point_light_2", 5.0, SKY_BLUE.to_normalized_color(), Attenuation::Quadratic);
+    let mut point_light2 = PointLight::new("point_light_2", 5.0, Color::r_to_n(&SUN),Attenuation::Quadratic);
+
     point_light2.transform.move_local(-5.0, 20.0, 0.0);
 
-    let ambient_light = AmbientLight::new("ambient_light_1", 0.1, WHITE.to_normalized_color());
+    let ambient_light = AmbientLight::new("ambient_light_1", 0.35, Color::r_to_n(&WHITE));
 
     s.lights.push(LightEnum::PointLight(point_light));
     s.lights.push(LightEnum::PointLight(point_light2));
@@ -88,6 +106,8 @@ pub fn get_lights_and_multi_objects_scene() -> Scene {
     );
 
     s.shaders.push(lambert);
+    s.shaders.push(phong);
+    s.shaders.push(lambert_green);
     cam.lock_to(cube.clone().transform.local.translate);
     cam.transform.move_local(0.0,10.0,0.0);
     // cam.pan(0.0, -5.0);
@@ -108,7 +128,7 @@ pub fn get_lights_and_multi_objects_scene() -> Scene {
     s.cameras.push(cam);
 
     s.render_settings = RenderSettings::default();
-    s.render_settings.file_name = "lights_and_multiple_objects_lambert{#}".to_string();
+    s.render_settings.file_name = "scene_001_lambert_phong{#}".to_string();
     s.render_settings.width = width as usize;
     s.render_settings.height = height as usize;
 

@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use crate::common::transform::Transform;
 use crate::light::types::{Attenuation, DIRECTIONAL_LIGHT};
 use crate::light::light::{BaseLight, Shadow};
-use crate::ray::types::RayCollision;
-use crate::vector::colors::Rgba;
+use crate::ray::types::RayContext;
+use crate::vector::colors::{NColor3};
 use crate::vector::types::Vector;
 use crate::vector::vec3f::Vec3f;
 use crate::vector::vec4f::Vec4f;
@@ -47,7 +47,7 @@ impl BaseLight for DirectionalLight {
 
     }
 
-    fn compute_light(&self, rc: &RayCollision, dir: &Vec3f) -> Option<Rgba> {
+    fn compute_light(&self, rc: &RayContext, dir: &Vec3f) -> Option<NColor3> {
         None
     }
 
@@ -59,7 +59,7 @@ impl BaseLight for DirectionalLight {
         self.transform.clone()
     }
 
-    fn supports_shadow(&self) -> bool {
+    fn can_cast_shadow(&self) -> bool {
         true
     }
 }

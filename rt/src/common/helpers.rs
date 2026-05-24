@@ -1,4 +1,5 @@
-use crate::vector::types::Vector;
+use crate::object::geometry::Geometry;
+use crate::vector::types::{Vec3i, Vector};
 use crate::vector::vec3f::Vec3f;
 
 // given current zero-based index v, and a matrix's column size m and row size n
@@ -31,6 +32,29 @@ pub fn calc_object_center(vertices: &Vec<Vec3f>) -> Vec3f {
     center[1] /= vertices.len() as f64;
     center[2] /= vertices.len() as f64;
     center
+}
+
+pub fn create_sphere(sphere: &mut Geometry, stacks: usize, slices: usize, radius: f64) {
+    for i in 0..=stacks {
+        let phi = std::f64::consts::PI * i as f64 / stacks as f64;
+        for j in 0..=slices {
+            let theta = 2.0_f64 * std::f64::consts::PI * j as f64 / slices as f64;
+            let x: f64 = radius * phi.sin() * theta.cos();
+            let y: f64 = radius * phi.cos();
+            let z: f64 = radius * phi.sin() * theta.sin();
+            sphere.data.vertices.push(Vec3f::new(x, y, z));
+        }
+    }
+
+    for i in 0..stacks {
+        for j in 0..slices {
+            let a = (i * (slices + 1) + j) as i32;
+            let b = a + (slices + 1) as i32;
+
+            sphere.data.faces.push(Vec3i::new(a as i64, (a + 1) as i64, b as i64));
+            sphere.data.faces.push(Vec3i::new(b as i64, (a + 1) as i64, (b + 1) as i64));
+        }
+    }
 }
 
 #[cfg(test)]

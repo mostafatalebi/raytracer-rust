@@ -1,9 +1,9 @@
 use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Sub};
 use serde::{Deserialize, Serialize};
-use zeroable_vec::Zeroable;
 use crate::vector::arithmetic::VectorArithmetic;
 use crate::vector::types::{DirVec, Vector};
 use crate::vector::utils::Utils;
+use crate::vector::vec4f::Vec4f;
 
 // a 3-dimensional position vector holding x,y,z
 #[derive(Debug, Default, Deserialize, Serialize, Clone, Copy)]
@@ -27,6 +27,9 @@ impl Vector for Vec3f {
         VectorArithmetic::multiply_scalar(self, other)
     }
 
+    fn divide_by_scalar(&self, other: f64) -> Self {
+        VectorArithmetic::divide_by_scalar(self, other)
+    }
 
     fn trunc(&self, num: i64) -> Self {
         Vec3f([f64::trunc(self[0] * num as f64) / num as f64,
@@ -50,28 +53,13 @@ impl Vector for Vec3f {
     fn normalized(&self) -> Self {
         Utils::normalize(self)
     }
-}
 
-impl Mul<f64> for Vec3f {
-    type Output = Vec3f;
-    fn mul(self, other: f64) -> Vec3f {
-        self.multiply_scalar(other)
+    fn dot(&self, other: &Self) -> f64 {
+        VectorArithmetic::dot(self, other)
     }
 }
 
-impl Mul<f64> for &Vec3f {
-    type Output = Vec3f;
-    fn mul(self, other: f64) -> Vec3f {
-        self.multiply_scalar(other)
-    }
-}
 
-impl Mul<&Vec3f> for &Vec3f {
-    type Output = Vec3f;
-    fn mul(self, other: &Vec3f) -> Vec3f {
-        VectorArithmetic::comp_wise_mul(self, other)
-    }
-}
 
 impl PartialEq for Vec3f {
     fn eq(&self, other: &Self) -> bool {
@@ -112,6 +100,45 @@ impl Vec3f {
 
     fn hat(&self) -> Self {
         Utils::normalize(self)
+    }
+
+    pub fn to_4(&self) -> Vec4f {
+        Vec4f::new(self[0], self[1], self[2], 1.0)
+    }
+}
+
+impl Mul<f64> for Vec3f {
+    type Output = Vec3f;
+    fn mul(self, other: f64) -> Vec3f {
+        self.multiply_scalar(other)
+    }
+}
+
+impl Mul<f64> for &Vec3f {
+    type Output = Vec3f;
+    fn mul(self, other: f64) -> Vec3f {
+        self.multiply_scalar(other)
+    }
+}
+
+impl Mul<&Vec3f> for f64 {
+    type Output = Vec3f;
+    fn mul(self, other: &Vec3f) -> Vec3f {
+        other.multiply_scalar(self)
+    }
+}
+
+impl Mul<&Vec3f> for &Vec3f {
+    type Output = Vec3f;
+    fn mul(self, other: &Vec3f) -> Vec3f {
+        VectorArithmetic::comp_wise_mul(self, other)
+    }
+}
+
+impl Mul<Vec3f> for Vec3f {
+    type Output = Vec3f;
+    fn mul(self, other: Vec3f) -> Vec3f {
+        VectorArithmetic::comp_wise_mul(&self, &other)
     }
 }
 

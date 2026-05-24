@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use crate::buffer::buffer::Buffer;
 use crate::camera::camera::{StandardCamera};
 use crate::error::error::SysError;

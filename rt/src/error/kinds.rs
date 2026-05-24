@@ -23,6 +23,7 @@ pub enum ErrorKind {
     FaceIdNotFound,
     ObjectWithoutShader,
     SurfaceNormalNotFound,
+    GeometryTypeUndefined,
 }
 
 
@@ -75,6 +76,7 @@ impl From<ErrorKind> for String {
             ErrorKind::FaceIdNotFound =>        String::from("FaceIdNotFound"),
             ErrorKind::ObjectWithoutShader =>        String::from("ObjectWithoutShader"),
             ErrorKind::SurfaceNormalNotFound =>        String::from("SurfaceNormalNotFound"),
+            ErrorKind::GeometryTypeUndefined => String::from("GeometryTypeUndefined"),
         }
     }
 }

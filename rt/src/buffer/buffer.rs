@@ -4,6 +4,7 @@ use crate::buffer::types::BufferIndex;
 use crate::common::helpers::get_column_row_indices_from_xy;
 use crate::error::error::SysError;
 use crate::error::kinds::ErrorKind;
+use crate::vector::colors::Color;
 use crate::vector::constants::BLACK;
 use crate::vector::vec4f::Vec4f;
 
@@ -33,7 +34,7 @@ impl Buffer {
             _ptr_rgb: 0,
             _buffer_iter_index: 0,
             _buffer_size: res,
-            rgba: vec!(BLACK; res),
+            rgba: vec!(Color::r_to_n(&BLACK.to_4()); res),
             heatmap: HashMap::new(),
         }
     }

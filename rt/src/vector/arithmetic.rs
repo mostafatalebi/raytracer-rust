@@ -1,4 +1,6 @@
-use std::ops::{Add, Index, IndexMut, Mul, Sub};
+use std::f64;
+use std::ops::{Add, Div, Index, IndexMut, Mul, Sub};
+use crate::common::types::ToF64;
 use crate::vector::types::Vector;
 
 pub struct VectorArithmetic {
@@ -51,6 +53,19 @@ impl VectorArithmetic {
         r
     }
 
+    pub fn divide_by_scalar<V, T>(a: &V, b: T) -> V
+    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector,
+          T: Div<Output=T> + Copy {
+        let mut r = V::default();
+        let a_len = a.size();
+        let mut i = 0;
+        while i < a_len {
+            r[i] = a[i] / b;
+            i += 1;
+        }
+        r
+    }
+
     pub fn comp_wise_mul<V, T>(a: &V, b: &V) -> V
     where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector, T: Mul<Output = T> + Copy {
         let mut r = V::default();
@@ -80,13 +95,14 @@ impl VectorArithmetic {
 
 
     // dot product of two vectors
-    pub fn dot<T>(a: &T, b: &T) -> f64
-    where T: Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Vector {
+    pub fn dot<T, R>(a: &T, b: &T) -> f64
+    where T: Index<usize, Output = R> + Default + Vector,
+    R: ToF64 + Copy {
         let a_len = a.size();
         let mut i = 0;
         let mut sum = 0f64;
         while i < a_len {
-            let s: f64 = a[i] * b[i];
+            let s: f64 = a[i].to_f64() * b[i].to_f64();
             sum = sum + s;
             i += 1;
         }
@@ -103,6 +119,19 @@ impl VectorArithmetic {
             i += 1;
         }
         r.sqrt()
+    }
+
+    pub fn clamp<T>(a: &T, min: f64, max: f64) -> T
+    where T: Index<usize, Output = f64> + IndexMut<usize> + Default + Vector,
+          {
+        let mut r = T::default();
+        let a_len = a.size();
+        let mut i = 0;
+        while i < a_len {
+            r[i] = f64::clamp(a[i], min, max);
+            i += 1;
+        }
+        r
     }
 }
 
