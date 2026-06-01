@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct RenderSettings {
     pub width:          usize,
     pub height:         usize,
-    pub ray_samples:    i8,
+    pub anti_aliasing:   u8,
+    pub rt_reflection_max_samples: u16,
     pub shadow_enabled: bool,
     pub output_dir:     String,
     pub file_name:      String,
@@ -43,7 +44,8 @@ impl Default for RenderSettings {
         RenderSettings{
             width: 100,
             height: 100,
-            ray_samples: 1,
+            rt_reflection_max_samples: 1,
+            anti_aliasing: 1,
             shadow_enabled: false,
             output_dir: "../tmp/output/".to_string(),
             file_name: "test_{#}".to_string(),

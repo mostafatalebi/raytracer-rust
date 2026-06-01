@@ -1,8 +1,9 @@
 use std::ops::{Add, Mul};
 use serde::{Deserialize, Serialize};
+use crate::colors::types::{InputChannel, NColor3};
 use crate::common::transform::Transform;
 use crate::quaternion::quaternion::Quaternion;
-use crate::vector::constants::{WORLD_RIGHT, WORLD_UP, WORLD_Z};
+use crate::vector::constants::{BLACK, WORLD_RIGHT, WORLD_UP, WORLD_Z};
 use crate::vector::types::{Vec2i, Vector};
 use crate::vector::utils::Utils;
 use crate::vector::vec2f::Vec2f;
@@ -31,7 +32,7 @@ pub struct StandardCamera {
     pub aspect_ratio: f64,
 
     // the direction at which the camera is looking
-    pub look_at:        Vec3f,
+    pub look_at:        Option<Vec3f>,
 
     #[serde(skip)]
     // this is the imaginary plan used for perspective
@@ -56,14 +57,8 @@ pub struct StandardCamera {
     #[serde(skip)]
     right:       Vec3f,
 
-    // internal rotation axis
-    // in radians
     #[serde(skip)]
-    pitch: f64,
-    #[serde(skip)]
-    yaw: f64,
-    #[serde(skip)]
-    roll: f64,
+    background: InputChannel,
 }
 
 #[typetag::serde]
@@ -79,7 +74,7 @@ impl StandardCamera {
     // new instance without applying any internal calculations
     // the instance is not usable unless other settings method
     // be called
-    pub fn new(resolution: Vec2i, sensor_size: Vec2i, look_at: Vec3f, up: Vec3f, focal_length: f64, origin: Option<Vec3f>) -> Self{
+    pub fn new(resolution: Vec2i, sensor_size: Vec2i, look_at: Option<Vec3f>, up: Vec3f, focal_length: f64, origin: Option<Vec3f>) -> Self{
         let aspect_ratio = resolution[0] as f64 /resolution[1] as f64;
         let mut c = Self{
             // @todo must grab from global ID pool
@@ -88,22 +83,21 @@ impl StandardCamera {
             transform: Default::default(),
             aspect_ratio: aspect_ratio,
             focal_length: focal_length,
+            look_at: None,
             _fov: Vec2f::default(),
-            look_at: look_at,
             _sensor_size: sensor_size,
             forward: Default::default(),
             up: up,
             right: Default::default(),
             image_plane_width: 0.0,
             image_plane_height: 0.0,
-            pitch: 0.0,
-            yaw: 0.0,
-            roll: 0.0,
+            background: InputChannel::new_with_color(BLACK)
         };
 
         if let Some(o) = origin {
             c.transform.local.translate = o;
         }
+
 
         c.configure();
 
@@ -124,7 +118,12 @@ impl StandardCamera {
     }
 
     pub fn lock_to(&mut self, look_at: Vec3f) {
-        self.look_at = look_at;
+        self.look_at = Some(look_at);
+        self.configure_orientation()
+    }
+
+    pub fn unlock(&mut self) {
+        self.look_at = None;
         self.configure_orientation()
     }
 
@@ -163,7 +162,9 @@ impl StandardCamera {
 
 
     pub fn configure_orientation(&mut self) {
-        self.transform.local.rotate = Quaternion::look_at(&self.transform.local.translate, &self.look_at, &WORLD_UP);
+        if let Some(look_at) = self.look_at {
+            self.transform.local.rotate = Quaternion::look_at(&self.transform.local.translate, &look_at, &WORLD_UP);
+        }
         self.update_basis_axis();
     }
 
@@ -234,18 +235,24 @@ impl StandardCamera {
         return self.aspect_ratio
     }
 
-    pub fn get_look_at(&self) -> Vec3f {
-        return self.look_at.clone()
+    pub fn get_look_at(&self) -> Option<Vec3f> {
+        return self.look_at
     }
 
     // pan means moving the camera in 2d coordinates.
     // This translates to moving the camera and the look_at's target
     // at the same time and with the same amount.
     pub fn pan(&mut self, x: f64, y: f64) {
-        // let offset = self.right.multiply_scalar(x).add_with(&self.up.multiply_scalar(y));
-        let offset = Vec3f::new(x, y, 0.0);
-        self.transform.local.translate += offset;
-        self.look_at += offset;
+        if let Some(ref mut look_at) = self.look_at {
+            let offset = Vec3f::new(x, y, 0.0);
+            self.transform.local.translate += offset;
+            *look_at += offset;
+        }
+    }
+
+
+    pub fn sample_background(&self, u: f64, v: f64) -> NColor3 {
+        BLACK
     }
 }
 
@@ -258,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_get_pixel_position() {
-        let mut c = StandardCamera::new(Vec2i([100,100]), Vec2i([100,100]), WORLD_Z,WORLD_UP,50.0, None);
+        let mut c = StandardCamera::new(Vec2i([100,100]), Vec2i([100,100]), Some(WORLD_Z),WORLD_UP,50.0, None);
         let pos = c.get_pixel_coordinates(0, 0);
         assert_eq!(pos.trunc(10000), Vec3f::new(-0.2375, 0.2375, 50.0));
 
@@ -266,7 +273,7 @@ mod tests {
         let real_ndc = StandardCamera::get_ndc(&Vec2i(RES_FHD), 20, 3);
         assert_eq!(expected_ndc, real_ndc);
 
-        let c = StandardCamera::new(Vec2i(RES_FHD), Vec2i([100,100]), WORLD_Z,WORLD_UP,50.0, None);
+        let c = StandardCamera::new(Vec2i(RES_FHD), Vec2i([100,100]), Some(WORLD_Z),WORLD_UP,50.0, None);
         let pos = c.get_pixel_coordinates(1919, 1079);
         assert_eq!(pos.trunc(10000), Vec3f::new(0.4263, 0.2397, 50.0));
 

@@ -1,13 +1,15 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+use crate::colors::types::{Color, NColor3};
 use crate::common::types::NormalizedF;
 use crate::error::error::SysError;
 use crate::light::light::{BaseLight, LightEnum};
+use crate::object::geometry::Geometry;
 use crate::ray::types::RayContext;
+use crate::scene::scene::Scene;
 use crate::vector::constants::{BLACK, GRAY};
 use crate::vector::types::Vector;
-use crate::shader::shader::BaseShader;
-use crate::vector::colors::{Color, NColor3};
-
+use crate::shader::shader::{BaseShader, ShaderEnum};
 #[derive(Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct LambertShader {
     id: String,
@@ -43,9 +45,31 @@ impl BaseShader for LambertShader {
         final_color = Color::n_clamp(&final_color);
         return Ok(final_color);
     }
+
+    fn cast_reflection(&self) -> bool {
+        false
+    }
+
+    fn set_reflection_properties(&self, rc: &mut RayContext) {
+
+    }
+
+    fn get_reflection_final_color(&self, ref_color: &NColor3) -> NColor3 {
+        ref_color.clone()
+    }
 }
 
 impl LambertShader {
+
+    pub fn get_shader(&self) -> ShaderEnum {
+        ShaderEnum::Lambert(self.clone())
+    }
+
+    pub fn new() -> Self {
+        LambertShader::default()
+    }
+
+
     pub fn default() -> LambertShader {
         LambertShader{
             id: "lambert_001".to_string(),
@@ -54,11 +78,33 @@ impl LambertShader {
         }
     }
 
-    pub fn new(id: &str, diffuse: NColor3, opacity: NormalizedF) -> LambertShader {
+    pub fn new_from_params(id: &str, diffuse: NColor3, opacity: NormalizedF) -> LambertShader {
         LambertShader{
             id: String::from(id),
             diffuse, opacity
         }
+    }
+
+    pub fn set_diffuse(&mut self, diffuse_color: NColor3) -> &mut Self {
+        self.diffuse = diffuse_color;
+        self
+    }
+
+    pub fn set_id(&mut self, id: &str) -> &mut Self {
+        self.id = String::from(id);
+        self
+    }
+    pub fn auto_id(&mut self) -> &mut Self {
+        self.id = format!("lambert::{}", Uuid::new_v4().to_string());
+        self
+    }
+
+    pub fn assign_to(&mut self, geo: &mut Geometry) -> &mut Self {
+        geo.assign_shader(&self.get_id());
+        self
+    }
+    pub fn add_to_scene(&self, sc: &mut Scene) {
+        sc.shaders.push(self.get_shader());
     }
 
 }

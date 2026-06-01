@@ -119,6 +119,7 @@ impl IndexMut<usize> for Vec2i {
     }
 }
 
+
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct Vec3i(pub [i64; 3]);
 
@@ -129,6 +130,11 @@ impl Vec3i {
 
     pub fn get_as_float(&self) -> Vec3f {
         Vec3f::new(self[0] as f64, self[1] as f64, self[2] as f64)
+    }
+
+    pub fn reverse(&mut self) -> Self {
+        self.0.reverse();
+        self.clone()
     }
 }
 

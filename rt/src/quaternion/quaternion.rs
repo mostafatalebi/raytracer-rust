@@ -86,7 +86,7 @@ impl Quaternion {
         Quaternion{
             x: qx_sin * qy_cos * qz_cos + qx_cos * qy_sin * qz_sin,
             y: qx_cos * qy_sin *qz_cos - qx_sin * qy_cos * qz_sin,
-            z: qx_cos * qy_cos * qz_sin - qx_sin * qy_sin * qz_cos,
+            z: qx_cos * qy_cos * qz_sin + qx_sin * qy_sin * qz_cos,
             w: qx_cos * qy_cos * qz_cos - qx_sin * qy_sin * qz_sin,
         }
     }

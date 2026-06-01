@@ -26,8 +26,10 @@ impl Params {
         }
     }
 
-    pub fn set(&mut self, k: String, v: Value) {
+    pub fn set(&mut self, k: String, v: Value) -> &mut Self {
         self.values.insert(k, v);
+
+        self
     }
 
     pub fn get(&self, k: &str) -> Option<&Value> {
@@ -39,6 +41,18 @@ impl Value {
     pub fn from_f64(f: f64) -> Value {
         let mut v = Value::default();
         v.v_f64 = f;
+
+        v
+    }
+    pub fn from_vec3f(val: Vec3f) -> Value {
+        let mut v = Value::default();
+        v.v_vec3f = Some(val);
+
+        v
+    }
+    pub fn from_str(val: String) -> Value {
+        let mut v = Value::default();
+        v.v_str = val;
 
         v
     }

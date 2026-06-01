@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
+use crate::colors::types::NColor3;
 use crate::common::transform::Transform;
 use crate::light::ambient_light::AmbientLight;
 use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
 use crate::ray::types::RayContext;
-use crate::vector::colors::{NColor3};
 use crate::vector::vec3f::Vec3f;
 
 #[typetag::serde]

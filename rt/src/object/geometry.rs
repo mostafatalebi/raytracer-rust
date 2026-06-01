@@ -1,4 +1,8 @@
+use std::fmt;
+use std::str::FromStr;
 use serde::{Deserialize, Serialize};
+use syn::ReturnType::Default;
+use syn::token::Ge;
 use crate::common::params::Params;
 use crate::common::transform::Transform;
 use crate::vector::types::{Vec3i, Vector};
@@ -14,6 +18,87 @@ pub enum GeometryType {
     #[serde(rename = "procedural")]
     Procedural,
 }
+impl FromStr for GeometryType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "polygon" => Ok(Self::Polygon),
+            "procedural" => Ok(Self::Procedural),
+            _ => Err(format!("Invalid GeometryType: {}", s)),
+        }
+    }
+}
+
+impl fmt::Display for GeometryType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Polygon => "polygon",
+            Self::Procedural => "procedural",
+        };
+
+        write!(f, "{s}")
+    }
+}
+impl GeometryType {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Polygon => "polygon".to_string(),
+            Self::Procedural => "procedural".to_string(),
+        }
+    }
+
+    fn to_u8(&self) -> u8 {
+        match self {
+            Self::Polygon => 1,
+            Self::Procedural => 2,
+        }
+    }
+}
+
+impl PartialEq<str> for GeometryType {
+    fn eq(&self, other: &str) -> bool {
+        if self.to_string() == other {
+            return true;
+        }
+        false
+    }
+}
+
+impl PartialEq<String> for GeometryType {
+    fn eq(&self, other: &String) -> bool {
+        if self.to_string() == *other {
+            return true;
+        }
+        false
+    }
+
+}
+impl PartialEq<GeometryType> for String {
+    fn eq(&self, other: &GeometryType) -> bool {
+        if self == &other.to_string() {
+            return true;
+        }
+        false
+    }
+}
+impl PartialEq<GeometryType> for u8 {
+    fn eq(&self, other: &GeometryType) -> bool {
+        if self == &other.to_u8() {
+            return true;
+        }
+        false
+    }
+}
+impl PartialEq<u8> for GeometryType {
+    fn eq(&self, other: &u8) -> bool {
+        if self.to_u8() == *other {
+            return true;
+        }
+        false
+    }
+}
+
 
 #[derive(Deserialize, Serialize, Default, Clone, PartialEq, Debug)]
 pub enum GeometrySubType {
@@ -24,6 +109,92 @@ pub enum GeometrySubType {
     #[serde(rename = "cube")]
     Cube,
 }
+
+
+impl FromStr for GeometrySubType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "sphere" => Ok(Self::Sphere),
+            "cube" => Ok(Self::Cube),
+            _ => Err(format!("Invalid GeometrySubType: {}", s)),
+        }
+    }
+}
+
+impl fmt::Display for GeometrySubType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Sphere => "sphere",
+            Self::Cube => "cube",
+        };
+
+        write!(f, "{s}")
+    }
+}
+
+impl GeometrySubType {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Sphere => "sphere".to_string(),
+            Self::Cube => "cube".to_string(),
+        }
+    }
+
+    fn to_u8(&self) -> u8 {
+        match self {
+            Self::Sphere => 50,
+            Self::Cube => 51,
+        }
+    }
+}
+
+impl PartialEq<str> for GeometrySubType {
+    fn eq(&self, other: &str) -> bool {
+        if self.to_string() == other {
+            return true;
+        }
+        false
+    }
+}
+
+impl PartialEq<String> for GeometrySubType {
+    fn eq(&self, other: &String) -> bool {
+        if self.to_string() == *other {
+            return true;
+        }
+        false
+    }
+}
+
+impl PartialEq<u8> for GeometrySubType {
+    fn eq(&self, other: &u8) -> bool {
+        if self.to_u8() == *other {
+            return true;
+        }
+        false
+    }
+}
+
+impl PartialEq<GeometrySubType> for String {
+    fn eq(&self, other: &GeometrySubType) -> bool {
+        if *self == other.to_string() {
+            return true;
+        }
+        false
+    }
+}
+impl PartialEq<GeometrySubType> for u8 {
+    fn eq(&self, other: &GeometrySubType) -> bool {
+        if *self == other.to_u8() {
+            return true;
+        }
+        false
+    }
+}
+
+
 
 #[derive(Deserialize, Serialize, Default, Clone)]
 pub struct GeometryData {
@@ -48,6 +219,7 @@ pub struct GeometryData {
 pub struct Geometry {
     pub geometry_type: GeometryType,
     pub geometry_subtype: GeometrySubType,
+    centroid: Vec3f,
     pub id: String,
     pub transform: Transform,
     pub render_attributes: RenderAttributes,
@@ -75,6 +247,37 @@ impl Geometry {
         self.calc_face_normals();
         self.compute_vertices_normals();
     }
+    pub fn prepare_geometry(&mut self) {
+        self.apply_transformations();
+        self.calculate_centroid();
+        self.calc_all_normals();
+    }
+
+
+    pub fn set_centroid_manually(&mut self, c: Vec3f) {
+        self.centroid = c;
+    }
+    pub fn calculate_centroid(&mut self) {
+        if self.geometry_type != GeometryType::Polygon {
+            return;
+        }
+        let mut centroid = Vec3f::default();
+        let mut total_area = 0.0;
+        for face in &self.data.faces {
+            let v1 = self.data.vertices[face[0] as usize];
+            let v2 = self.data.vertices[face[1] as usize];
+            let v3 = self.data.vertices[face[2] as usize];
+            let area = 0.5 * &(&v2 - &v1).cross3(&(&v3 - &v1)).magnitude();
+
+            let triangular_centroid = (v1+v2+v3).divide_by_scalar(3.0);
+
+            centroid += triangular_centroid*area;
+            total_area += area;
+        }
+
+        self.centroid = centroid.divide_by_scalar(total_area)
+    }
+
     pub fn calc_face_normals(&mut self) {
         if self.geometry_type != GeometryType::Polygon {
             return;
@@ -115,6 +318,10 @@ impl Geometry {
         }
 
         self.data.vertex_normals = v_normals
+    }
+
+    pub fn get_center(&self) -> Vec3f {
+        self.centroid
     }
 }
 

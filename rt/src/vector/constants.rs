@@ -16,6 +16,8 @@ pub const SOFT_PINK: Vec3f    = Vec3f([255.0, 182.0, 193.0]);
 pub const MAGENTA: Vec3f      = Vec3f([255.0, 0.0,   255.0]);
 pub const CAST_DAY: Vec3f     = Vec3f([255.0, 244.0, 214.0]);
 
+pub const RED: Vec3f     = Vec3f([255.0, 10.0, 10.0]);
+
 // i hat
 pub const WORLD_UP: Vec3f = Vec3f([0.0, 1.0, 0.0]);
 // j hat

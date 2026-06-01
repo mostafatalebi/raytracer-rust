@@ -4,7 +4,7 @@ use crate::buffer::types::BufferIndex;
 use crate::common::helpers::get_column_row_indices_from_xy;
 use crate::error::error::SysError;
 use crate::error::kinds::ErrorKind;
-use crate::vector::colors::Color;
+use crate::colors::types::Color;
 use crate::vector::constants::BLACK;
 use crate::vector::vec4f::Vec4f;
 

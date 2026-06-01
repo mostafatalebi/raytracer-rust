@@ -73,7 +73,7 @@ pub fn get_multi_objects_scene() -> Scene {
     let mut cam = StandardCamera::new(
         Vec2i::new(width, height),
         SENSOR_SQUARE_66,
-        Vec3f::new(0.0, 0.0, -5.0),
+        Some(Vec3f::new(0.0, 0.0, -5.0)),
         WORLD_UP,
         50.0,
         Some(Vec3f::new(0.0, 0.0, 40.0)),

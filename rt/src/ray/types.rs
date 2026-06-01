@@ -1,10 +1,12 @@
 use crate::buffer::types::BufferIndex;
-use crate::common::constants::EPS;
+use crate::common::constants::{EPS, MAX_REFLECTION_SAMPLES};
 use crate::common::params::{Params, Value};
 use crate::shader::shader::ShaderEnum;
 use crate::vector::vec3f::Vec3f;
 use std::any::Any;
 use std::collections::HashMap;
+use crate::common::obj_types::ObjType;
+use crate::object::geometry::{GeometrySubType, GeometryType};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub enum RayType {
@@ -40,6 +42,9 @@ pub struct RayContext {
     pub pixel_coordinate: Option<Vec3f>,
     pub buffer_index: Option<BufferIndex>,
     pub intersected_object_index: Option<usize>,
+    pub intersected_object_centroid: Option<Vec3f>,
+    pub intersected_geo_type: Option<GeometryType>,
+    pub intersected_geo_subtype: Option<GeometrySubType>,
     pub intersected_face_index: Option<usize>,
     pub intersected_face_normal: Option<Vec3f>,
     pub intersected_face_vertex_normal: Option<Vec3f>,
@@ -53,6 +58,12 @@ pub struct RayContext {
     pub memory_buffer: Params,
     pub previous_closest_distance: f64,
     pub obj_receive_shadow: bool,
+    pub obj_cast_reflection: bool,
+    pub reflection_max_depth: u8,
+    pub reflection_max_sample: u16,
+    pub reflection_current_level: u8,
+    pub reflection_glossiness_samples: i8,
+    pub reflection_glossiness: f64,
     pub ray_type: RayType,
     pub is_in_shadow: bool,
 }
@@ -70,7 +81,7 @@ impl RayContext {
 
         rc
     }
-    pub fn new_for_shadow_ray(origin: &Vec3f) -> RayContext {
+    pub fn new_for_secondary_ray(ray_type: RayType, origin: &Vec3f, f_n: Option<Vec3f>, v_n: Option<Vec3f>) -> RayContext {
         let mut rc = RayContext::default();
         rc.origin_coordinate = origin.clone();
         rc.ray_type = RayType::ShadowRay;
@@ -78,7 +89,25 @@ impl RayContext {
         rc.shader_index = usize::MAX;
         rc.intersected_object_index = None;
         rc.intersected_face_index = None;
+        rc.intersected_face_normal = f_n;
+        rc.intersected_face_vertex_normal = v_n;
         rc.previous_closest_distance = f64::MAX;
+        rc.ray_type = ray_type;
+        rc
+    }
+
+    pub fn fork_for_reflection(&self, ray_type: RayType, origin: &Vec3f, f_n: Option<Vec3f>, v_n: Option<Vec3f>) -> RayContext {
+        let mut rc = self.clone();
+        rc.origin_coordinate = origin.clone();
+        rc.ray_type = RayType::ShadowRay;
+        rc.buffer_index = None;
+        rc.shader_index = usize::MAX;
+        rc.intersected_face_normal = f_n;
+        rc.intersected_face_vertex_normal = v_n;
+        rc.previous_closest_distance = f64::MAX;
+        rc.ray_type = ray_type;
+
+        rc.reflection_max_depth = 2;
         rc
     }
 
@@ -150,6 +179,14 @@ impl RayContext {
         self
 
     }
+
+    pub fn can_continue_for_reflection(&self) -> bool {
+        self.obj_cast_reflection && self.reflection_max_depth > 0 && self.reflection_current_level < self.reflection_max_depth-1
+    }
+
+    pub fn increment_reflection_level(&mut self) {
+        self.reflection_current_level += 1;
+    }
 }
 
 impl PartialEq for RayContext {
@@ -167,6 +204,9 @@ impl Default for RayContext {
             pixel_coordinate: None,
             buffer_index: None,
             intersected_object_index: None,
+            intersected_object_centroid: None,
+            intersected_geo_type: None,
+            intersected_geo_subtype: None,
             intersected_face_index: None,
             intersected_face_normal: None,
             intersected_face_vertex_normal: None,
@@ -180,6 +220,12 @@ impl Default for RayContext {
             ever_intersected: false,
             previous_closest_distance: f64::INFINITY,
             obj_receive_shadow: false,
+            obj_cast_reflection: true,
+            reflection_max_depth: 2,
+            reflection_max_sample: MAX_REFLECTION_SAMPLES,
+            reflection_current_level: 0,
+            reflection_glossiness_samples: 0,
+            reflection_glossiness: 0.0,
             ray_type: RayType::default(),
             is_in_shadow: false,
         }

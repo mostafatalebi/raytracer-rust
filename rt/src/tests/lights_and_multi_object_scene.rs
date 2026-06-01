@@ -11,7 +11,7 @@ use crate::scene::scene::Scene;
 use crate::shader::lambert::LambertShader;
 use crate::shader::phong::PhongShader;
 use crate::shader::shader::{BaseShader, ShaderEnum};
-use crate::vector::colors::Color;
+use crate::colors::types::Color;
 use crate::vector::constants::{CAST_DAY, CYAN, FAINT_BLUE_WHITE, FAINT_GREEN, GRAY, MAGENTA, SKY_BLUE, SUN, WHITE, WORLD_UP};
 use crate::vector::types::{Vec2i, Vec3i, Vector, SENSOR_SQUARE_66};
 use crate::vector::vec3f::Vec3f;
@@ -50,10 +50,11 @@ pub fn get_lights_and_multi_objects_scene() -> Scene {
     cube.calc_all_normals();
 
 
-    let mut lambert = ShaderEnum::Lambert(LambertShader::new("lambert_01", Color::r_to_n(&GRAY), 1.0));
-    let mut lambert_green = ShaderEnum::Lambert(LambertShader::new("lambert_green", Color::r_to_n(&FAINT_GREEN), 1.0));
-    let mut spec_color = Color::r_to_n(&WHITE);
-    let mut phong = ShaderEnum::Phong(PhongShader::new("phong_01", Color::r_to_n(&MAGENTA), 1.0, 0.5, spec_color, 1.0));
+    let lambert = ShaderEnum::Lambert(LambertShader::new_from_params("lambert_01", Color::r_to_n(&GRAY), 1.0));
+    let lambert_green = ShaderEnum::Lambert(LambertShader::new_from_params("lambert_green", Color::r_to_n(&FAINT_GREEN), 1.0));
+    let spec_color = Color::r_to_n(&WHITE);
+    let phong = ShaderEnum::Phong(PhongShader::new_with_params("phong_01", Color::r_to_n(&MAGENTA), 1.0, 0.5, spec_color, 1.0,
+                                                               0.3, 0.6));
 
 
     let mut sphere = create_procedural_sphere(Vec3f::new(0.0,0.0,0.0), 5.0);
@@ -99,7 +100,7 @@ pub fn get_lights_and_multi_objects_scene() -> Scene {
     let mut cam = StandardCamera::new(
         Vec2i::new(width, height),
         SENSOR_SQUARE_66,
-        Vec3f::new(0.0, 0.0, -5.0),
+        Some(Vec3f::new(0.0, 0.0, -5.0)),
         WORLD_UP,
         50.0,
         Some(Vec3f::new(0.0, 0.0, 40.0)),

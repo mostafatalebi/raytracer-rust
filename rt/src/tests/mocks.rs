@@ -35,7 +35,7 @@ pub fn get_simple_plane_scene() -> Scene {
     let mut cam = StandardCamera::new(
         Vec2i::new(width, height),
         SENSOR_SQUARE_66,
-        Vec3f::new(0.0, 0.0, 5.0),
+        Some(Vec3f::new(0.0, 0.0, 5.0)),
         WORLD_UP,
         50.0,
         Some(Vec3f::new(0.0, 0.0, -10.0)),
@@ -115,7 +115,7 @@ pub fn get_simple_cube_scene() -> Scene {
     let mut cam = StandardCamera::new(
         Vec2i::new(width, height),
         SENSOR_SQUARE_66,
-        Vec3f::new(0.0, 0.0, -5.0),
+        Some(Vec3f::new(0.0, 0.0, -5.0)),
         WORLD_UP,
         50.0,
         Some(Vec3f::new(0.0, 0.0, 40.0)),
@@ -167,7 +167,7 @@ pub fn get_dummy_scene() -> Scene {
     plane.data.face_normals.push(Vec3f::new(0.0, 1.0, 0.0));
     plane.data.face_normals.push(Vec3f::new(0.0, 1.0, 0.0));
     let mut cam = StandardCamera::new(Vec2i::new(width, height),
-                                      SENSOR_SIZE_35, Vec3f::new(0.0, 0.0, 0.0),
+                                      SENSOR_SIZE_35, Some(Vec3f::new(0.0, 0.0, 0.0)),
                                       WORLD_UP,10.0, Some(Vec3f::new(20.0,0.0,6.0)));
     // plane.attributes.move_world(0.0, -50.0, 0.0);
     s.geometries.push(plane);

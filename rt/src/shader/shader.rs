@@ -1,19 +1,22 @@
 use serde::{Deserialize, Serialize};
+use crate::colors::types::NColor3;
 use crate::error::error::SysError;
 use crate::light::light::LightEnum;
 use crate::ray::types::RayContext;
 use crate::shader::face_shader::FaceShader;
 use crate::shader::lambert::LambertShader;
 use crate::shader::phong::PhongShader;
-use crate::vector::colors::{NColor3};
-
 #[typetag::serde]
 pub trait BaseShader {
     fn get_id(&self) -> String;
     fn compute(&self, collision: &RayContext, lights: &LightEnum) -> Result<NColor3, SysError>;
+
+    fn cast_reflection(&self) -> bool;
+    fn set_reflection_properties(&self, rc: &mut RayContext);
+    fn get_reflection_final_color(&self, ref_color: &NColor3) -> NColor3;
 }
 
-#[derive(Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(tag = "shader_type")]
 pub enum ShaderEnum {
     #[serde(rename="lambert")]
@@ -41,6 +44,31 @@ impl BaseShader for ShaderEnum {
             ShaderEnum::FaceShader(shader) => shader.compute(collision, lights),
         }
     }
+
+    fn cast_reflection(&self) -> bool {
+        match self {
+            ShaderEnum::Lambert(shader) => shader.cast_reflection(),
+            ShaderEnum::Phong(shader) => shader.cast_reflection(),
+            ShaderEnum::FaceShader(shader) => shader.cast_reflection(),
+        }
+    }
+
+    fn set_reflection_properties(&self, rc: &mut RayContext) {
+        match self {
+            ShaderEnum::Lambert(shader) => shader.set_reflection_properties(rc),
+            ShaderEnum::Phong(shader) => shader.set_reflection_properties(rc),
+            ShaderEnum::FaceShader(shader) => shader.set_reflection_properties(rc),
+        }
+    }
+
+    fn get_reflection_final_color(&self, ref_color: &NColor3) -> NColor3 {
+        match self {
+            ShaderEnum::Lambert(shader) => shader.get_reflection_final_color(ref_color),
+            ShaderEnum::Phong(shader) => shader.get_reflection_final_color(ref_color),
+            ShaderEnum::FaceShader(shader) => shader.get_reflection_final_color(ref_color),
+        }
+    }
+
 }
 
 impl Default for ShaderEnum {

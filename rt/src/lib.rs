@@ -18,3 +18,5 @@ pub mod tests;
 pub mod matrix;
 
 pub mod quaternion;
+
+pub mod colors;

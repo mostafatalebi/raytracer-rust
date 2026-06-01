@@ -1,9 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::vector::colors::{Color, NColor3};
+use crate::colors::types::{Color, NColor3};
 use crate::vector::constants::BLACK;
-use crate::vector::vec3f::Vec3f;
-use crate::vector::vec4f::Vec4f;
-
 #[derive(Deserialize, Serialize, Clone)]
 pub struct RenderAttributes {
     pub renderable: bool,

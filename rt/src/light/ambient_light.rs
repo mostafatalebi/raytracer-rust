@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
+use crate::colors::types::NColor3;
 use crate::common::transform::Transform;
 use crate::light::types::{Attenuation, AMBIENT_LIGHT};
 use crate::light::light::BaseLight;
 use crate::light::types::Attenuation::Flat;
 use crate::ray::types::RayContext;
-use crate::vector::colors::{NColor3};
 use crate::vector::types::Vector;
 use crate::vector::vec3f::Vec3f;
 

@@ -11,6 +11,7 @@ pub fn create_procedural_sphere(center: Vec3f, radius: f64) -> Geometry {
     geo.geometry_type = Procedural;
     geo.geometry_subtype = Sphere;
     geo.transform.local.translate = center;
+    geo.set_centroid_manually(center);
     geo.data.params.set("radius".to_string(), Value::from_f64(radius));
     geo
 }

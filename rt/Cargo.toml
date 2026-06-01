@@ -20,6 +20,9 @@ rand = "0.8"
 random_color = { version = "1.1.0", features = ["rgb_support"] }
 quaternion = "2.0.0"
 log = "0.4.29"
+uuid = {  version = "1.23.1", features = ["v4"] }
+dyn-clone = "1.0.20"
+enum_str = "0.1.2"
 
 [lib]
 path = "src/lib.rs"

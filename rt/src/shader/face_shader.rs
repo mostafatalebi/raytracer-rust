@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use crate::colors::types::{Color, NColor3};
 use crate::common::dummy_utils::pick_random_color;
 use crate::error::error::SysError;
-use crate::error::kinds::ErrorKind;
 use crate::light::light::LightEnum;
 use crate::ray::types::RayContext;
 use crate::shader::shader::BaseShader;
-use crate::vector::colors::{Color, NColor3};
 use crate::vector::constants::WHITE;
 #[derive(Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct FaceShader {
@@ -77,5 +76,15 @@ impl BaseShader for FaceShader {
         Ok(Color::r_to_n(&WHITE))
     }
 
+    fn cast_reflection(&self) -> bool {
+        false
+    }
+
+    fn set_reflection_properties(&self, rc: &mut RayContext) {
+    }
+
+    fn get_reflection_final_color(&self, ref_color: &NColor3) -> NColor3 {
+        ref_color.clone()
+    }
 
 }

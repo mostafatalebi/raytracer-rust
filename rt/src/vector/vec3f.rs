@@ -105,6 +105,10 @@ impl Vec3f {
     pub fn to_4(&self) -> Vec4f {
         Vec4f::new(self[0], self[1], self[2], 1.0)
     }
+    
+    pub fn create_by<F: Fn() -> f64>(f: F) -> Vec3f {
+        Vec3f::new(f(), f(), f())
+    }
 }
 
 impl Mul<f64> for Vec3f {

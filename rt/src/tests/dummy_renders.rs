@@ -5,6 +5,7 @@ mod test_dummy_renders {
     use crate::tests::dummy_multi_object_scene::get_multi_objects_scene;
     use crate::tests::lights_and_multi_object_scene::get_lights_and_multi_objects_scene;
     use crate::tests::mocks::{get_dummy_scene, get_simple_cube_scene, get_simple_plane_scene};
+    use crate::tests::scene_001::get_scene_001;
     use crate::vector::arithmetic::VectorArithmetic;
     use crate::vector::constants::WORLD_Z;
     use crate::vector::types::Vector;
@@ -69,6 +70,14 @@ mod test_dummy_renders {
     #[test]
     fn test_dummy_scene() {
         let s = get_dummy_scene();
+
+        let mut renderer = Renderer::new(Arc::new(RwLock::new(s)));
+
+        renderer.render();
+    }
+    #[test]
+    fn test_scene_001() {
+        let s = get_scene_001();
 
         let mut renderer = Renderer::new(Arc::new(RwLock::new(s)));
 

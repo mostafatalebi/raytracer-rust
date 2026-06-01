@@ -1,6 +1,6 @@
 use rand::{thread_rng, Rng};
 use rand::seq::SliceRandom;
-use crate::vector::colors::NColor3;
+use crate::colors::types::NColor3;
 use crate::vector::vec4f::Vec4f;
 
 fn random_1_to_n(n: i32) -> i32 {
