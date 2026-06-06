@@ -1,28 +1,34 @@
+use rayon::max_num_threads;
 use crate::camera::camera::StandardCamera;
 use crate::colors::procedural::CheckeredTexture;
+use crate::common::helpers::create_sphere;
 use crate::light::ambient_light::AmbientLight;
 use crate::light::light::LightEnum;
 use crate::light::point_light::PointLight;
 use crate::light::types::Attenuation;
+use crate::object::geometry::Geometry;
 use crate::object::helpers::create_cube;
 use crate::object::procedural::create_procedural_sphere;
 use crate::scene::render_settings::RenderSettings;
 use crate::scene::scene::Scene;
 use crate::shader::lambert::LambertShader;
 use crate::shader::phong::PhongShader;
+use crate::shader::shader::{BaseShader, ShaderEnum};
 use crate::colors::types::{Color, NColor3};
 use crate::object::geometry::GeometryType::Procedural;
-use crate::vector::constants::{CYAN, FAINT_BLUE_WHITE, FAINT_GREEN, MUTED_PLUM, RED, SKY_BLUE, SOFT_PINK, WHITE, WORLD_UP};
-use crate::vector::types::{Vec2i, SENSOR_SQUARE_66};
+use crate::vector::constants::{BLACK, CAST_DAY, CYAN, FAINT_BLUE_WHITE, FAINT_GREEN, GRAY, MAGENTA, MUTED_PLUM, OCEAN_BLUE, RED, SKY_BLUE, SOFT_PINK, SUN, WHITE, WORLD_UP};
+use crate::vector::types::{Vec2i, Vec3i, Vector, SENSOR_SQUARE_66};
 use crate::vector::vec3f::Vec3f;
 use std::thread::available_parallelism;
-use crate::camera::types::AntiAliasingMethod::{MonteCarlo, Uniform};
+use crate::camera::types::AntiAliasingMethod::MonteCarlo;
+use crate::shader::shader::ShaderEnum::Wireframe;
+use crate::shader::wireframe::WireframeShader;
 
 pub fn get_scene_001() -> Scene {
     let mut scene = Scene::default();
 
-    let width = 1500;
-    let height = 1500;
+    let width = 500;
+    let height = 500;
 
     let room_width: f64 = 50.0;
     let room_length: f64 = 50.0;
@@ -31,34 +37,39 @@ pub fn get_scene_001() -> Scene {
 
     let mut room_front_wall = create_cube(room_width, room_height, room_thickness);
     room_front_wall.transform.move_local(0.0,0.0,-50.0);
-    LambertShader::new()
+
+    WireframeShader::new()
         .auto_id()
-        .set_diffuse(Color::r_to_n(&FAINT_GREEN))
+        .set_diffuse(Color::r_to_n(&WHITE))
+        .set_edge(0.1, Color::r_to_n(&BLACK))
         .assign_to(&mut room_front_wall)
         .add_to_scene(&mut scene);
 
 
     let mut room_left_wall = create_cube(room_thickness, room_height, room_width);
     room_left_wall.transform.move_local(-room_width,0.0,0.0);
-    LambertShader::new()
+    WireframeShader::new()
         .auto_id()
-        .set_diffuse(Color::r_to_n(&FAINT_BLUE_WHITE))
+        .set_diffuse(Color::r_to_n(&WHITE))
+        .set_edge(0.1, Color::r_to_n(&BLACK))
         .assign_to(&mut room_left_wall)
         .add_to_scene(&mut scene);
 
     let mut room_right_wall = create_cube(room_thickness, room_height, room_width);
     room_right_wall.transform.move_local(room_width,0.0,0.0);
-    LambertShader::new()
+    WireframeShader::new()
         .auto_id()
-        .set_diffuse(Color::r_to_n(&SOFT_PINK))
+        .set_diffuse(Color::r_to_n(&WHITE))
+        .set_edge(0.1, Color::r_to_n(&BLACK))
         .assign_to(&mut room_right_wall)
         .add_to_scene(&mut scene);
 
     let mut room_ceiling = create_cube(room_width, room_thickness, room_width);
     room_ceiling.transform.move_local(0.0, room_height,0.0);
-    LambertShader::new()
+    WireframeShader::new()
         .auto_id()
-        .set_diffuse(Color::r_to_n(&SOFT_PINK))
+        .set_diffuse(Color::r_to_n(&WHITE))
+        .set_edge(0.1, Color::r_to_n(&BLACK))
         .assign_to(&mut room_ceiling)
         .add_to_scene(&mut scene);
 
@@ -81,12 +92,10 @@ pub fn get_scene_001() -> Scene {
 
     let radius: f64 = 10.0;
     let mut sphere_1 = create_procedural_sphere(Vec3f::new(30.0, 15.0, -35.0), radius);
-    PhongShader::new()
+    WireframeShader::new()
         .auto_id()
-         .set_diffuse_texture(Box::new(CheckeredTexture::new(24.0)))
-        //.set_diffuse_color(Color::r_to_n(&NColor3::new(20.0,20.0,20.0)))
-        .set_specularity(0.5, Color::r_to_n(&WHITE), 1.0)
-        .set_reflection(0.3, 0.0)
+        .set_diffuse(Color::r_to_n(&WHITE))
+        .set_edge(0.1, Color::r_to_n(&BLACK))
         .assign_to(&mut sphere_1)
         .add_to_scene(&mut scene);
     scene.geometries.push(sphere_1);
@@ -105,7 +114,7 @@ pub fn get_scene_001() -> Scene {
     let mut sphere_3 = create_procedural_sphere(Vec3f::new(-30.0, 15.0, -35.0), radius);
     PhongShader::new()
         .auto_id()
-        .set_diffuse_color(Color::r_to_n(&Vec3f::new(26.0, 158.0, 214.0)))
+        .set_diffuse_color(Color::r_to_n(&MUTED_PLUM))
         .set_specularity(0.5, Color::r_to_n(&WHITE), 1.0)
         .set_reflection(0.1, 0.0)
         .assign_to(&mut sphere_3)
@@ -197,9 +206,9 @@ pub fn get_scene_001() -> Scene {
     scene.render_settings.height = height as usize;
     if let Ok(num_of_threads) = available_parallelism() {
         scene.render_settings.mt_num_of_threads = usize::max(1, num_of_threads.get() - 1);
-        scene.render_settings.mt_num_of_threads = 8;
+        // scene.render_settings.mt_num_of_threads = 1;
     }
-    scene.render_settings.anti_aliasing = 16;
+    scene.render_settings.anti_aliasing = 4;
     scene.render_settings.anti_aliasing_method = MonteCarlo;
     scene.apply_indexing();
 

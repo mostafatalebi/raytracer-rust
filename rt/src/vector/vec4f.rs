@@ -20,7 +20,7 @@ impl Vec4f {
     }
 }
 
-impl Vector for Vec4f {
+impl Vector<f64> for Vec4f {
     fn size(&self) -> usize {
         4
     }
@@ -67,6 +67,13 @@ impl Vector for Vec4f {
 
     fn dot(&self, other: &Self) -> f64 {
         VectorArithmetic::dot(self, other)
+    }
+
+    fn clamp(&mut self, min: f64, max: f64) {
+        self[0] = self[0].clamp(min, max);
+        self[1] = self[1].clamp(min, max);
+        self[2] = self[1].clamp(min, max);
+        self[3] = self[1].clamp(min, max);
     }
 }
 

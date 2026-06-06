@@ -7,22 +7,18 @@ homepage = "https://github.com/mostafatalebi"
 
 
 [dependencies]
-fs = "0.0.5"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 typetag = "0.2.21"
 syn = "2"
-quote = "1"
-proc-macro2 = "1"
 zeroable_vec = { path = "../macros/zeroable_vec" }
 image = "0.25.10"
 rand = "0.8"
-random_color = { version = "1.1.0", features = ["rgb_support"] }
-quaternion = "2.0.0"
 log = "0.4.29"
 uuid = {  version = "1.23.1", features = ["v4"] }
 dyn-clone = "1.0.20"
-enum_str = "0.1.2"
+rayon = "1.12.0"
+crossterm = "0.29.0"
 
 [lib]
 path = "src/lib.rs"

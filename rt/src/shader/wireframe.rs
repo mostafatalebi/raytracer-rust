@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use typetag::__private22::inventory::collect;
 use uuid::Uuid;
 use crate::colors::types::{Color, NColor3};
 use crate::common::types::NormalizedF;
@@ -7,44 +8,40 @@ use crate::light::light::{BaseLight, LightEnum};
 use crate::object::geometry::Geometry;
 use crate::ray::types::RayContext;
 use crate::scene::scene::Scene;
+use crate::shader::lambert::LambertShader;
 use crate::vector::constants::{BLACK, GRAY};
 use crate::vector::types::Vector;
 use crate::shader::shader::{BaseShader, ShaderEnum};
-#[derive(Default, Deserialize, Serialize, Clone, PartialEq)]
-pub struct LambertShader {
-    id: String,
+use crate::vector::vec3f::Vec3f;
 
+#[derive(Default, Deserialize, Serialize, Clone, PartialEq)]
+pub struct WireframeShader {
+    id: String,
     // RGB + Alpha
     diffuse: NColor3,
     opacity: NormalizedF,
-
-
+    edge_width: NormalizedF,
+    edge_color: NColor3,
+    distance_threshold: f64,
 }
 
 #[typetag::serde]
-impl BaseShader for LambertShader {
+impl BaseShader for WireframeShader {
     fn get_id(&self) -> String {
         self.id.clone()
     }
 
 
     fn compute(&self, collision: &RayContext, light: &LightEnum) -> Result<NColor3, SysError> {
-        let mut light_color = NColor3::default();
-        let dir = light.get_displacement_vector(&collision.intersection_coordinate);
-        let res = light.compute_light(collision, &dir);
-        match res {
-            Some(color) => {
-                light_color = light_color.add_with(&color)
-            },
-            None => {
-                light_color = light_color.add_with(&Color::r_to_n(&BLACK))
-            }
+        if collision.intersection_to_nearest_edge_distance as f64 <= self.distance_threshold {
+            self.compute_lambert(&self.edge_color, collision, light)
+        } else {
+            self.compute_lambert(&self.diffuse, collision, light)
         }
-
-        let mut final_color: NColor3 = &light_color * &(&self.diffuse * self.opacity);
-        final_color = Color::n_clamp(&final_color);
-        return Ok(final_color);
     }
+
+
+
 
     fn cast_reflection(&self) -> bool {
         false
@@ -59,38 +56,38 @@ impl BaseShader for LambertShader {
     }
 }
 
-impl LambertShader {
+impl WireframeShader {
 
     pub fn get_shader(&self) -> ShaderEnum {
-        ShaderEnum::Lambert(self.clone())
+        ShaderEnum::Wireframe(self.clone())
     }
 
     pub fn new() -> Self {
-        LambertShader::default()
+        WireframeShader::default()
     }
 
 
-    pub fn default() -> LambertShader {
-        LambertShader{
+    pub fn default() -> WireframeShader {
+        WireframeShader{
             id: "lambert_001".to_string(),
-            diffuse: Color::r_to_n(&GRAY),
+            diffuse: Color::r_to_n(&Vec3f::new(210.0, 210.0, 210.0)),
             opacity: 1.0,
+            edge_width: 0.1,
+            edge_color: Color::r_to_n(&BLACK),
+            distance_threshold: 1.0,
         }
     }
 
-    pub fn new_from_params(id: &str, diffuse: NColor3, opacity: NormalizedF) -> LambertShader {
-        LambertShader{
-            id: String::from(id),
-            diffuse, opacity
-        }
-    }
 
     pub fn set_diffuse(&mut self, diffuse_color: NColor3) -> &mut Self {
         self.diffuse = diffuse_color;
         self
     }
-    pub fn get_diffuse(&self) -> NColor3 {
-        self.diffuse
+
+    pub fn set_edge(&mut self, width: NormalizedF, color: NColor3) -> &mut Self {
+        self.edge_width = width;
+        self.edge_color = color;
+        self
     }
 
     pub fn set_id(&mut self, id: &str) -> &mut Self {
@@ -108,6 +105,24 @@ impl LambertShader {
     }
     pub fn add_to_scene(&self, sc: &mut Scene) {
         sc.shaders.push(self.get_shader());
+    }
+
+    fn compute_lambert(&self, diffuse: &NColor3, collision: &RayContext, light: &LightEnum) -> Result<NColor3, SysError> {
+        let mut light_color = NColor3::default();
+        let dir = light.get_displacement_vector(&collision.intersection_coordinate);
+        let res = light.compute_light(collision, &dir);
+        match res {
+            Some(color) => {
+                light_color = light_color.add_with(&color)
+            },
+            None => {
+                light_color = light_color.add_with(&Color::r_to_n(&BLACK))
+            }
+        }
+
+        let mut final_color: NColor3 = &light_color * &(diffuse * self.opacity);
+        final_color = Color::n_clamp(&final_color);
+        return Ok(final_color);
     }
 
 }

@@ -1,5 +1,7 @@
-use std::ops::{Index, IndexMut, Mul, Sub};
+use std::ops::{Div, Index, IndexMut, Mul, Sub};
+use std::process::Output;
 use crate::common::constants::EPS;
+use crate::common::types::ToF64;
 use crate::vector::types::{Vec2i, Vector};
 use crate::vector::vec2f::Vec2f;
 
@@ -21,13 +23,15 @@ impl Utils {
     }
 
     // converts a vector into a unit vector
-    pub fn normalize<T, R>(v: &T) -> T
-    where T: Index<usize, Output = R>+IndexMut<usize, Output = R> + Default + Vector + Clone
+    pub fn normalize<V, R>(v: &V) -> V
+    where V: Index<usize, Output = R>+IndexMut<usize, Output = R> + Default + Vector<f64> + Clone,
+          R: ToF64 + Copy
     {
         let magnitude = v.magnitude();
         if magnitude < EPS {
             return v.clone();
         }
+
         let mut r = v.multiply_scalar(1f64/magnitude);
 
         r

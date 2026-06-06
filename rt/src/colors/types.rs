@@ -2,7 +2,7 @@ use std::any::Any;
 use std::ops::{Index, IndexMut};
 use dyn_clone::DynClone;
 use serde::Serialize;
-use crate::colors::input::CheckeredTexture;
+use crate::colors::procedural::CheckeredTexture;
 use crate::colors::ramp::Ramp;
 use crate::common::params::Params;
 use crate::common::types::NormalizedF;
@@ -71,13 +71,22 @@ pub struct Color {
 
 impl Color {
     pub fn n_to_r<T>(color: &T) -> T
-        where T: Vector + Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Copy {
+        where T: Vector<f64> + Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Copy {
         let v = color.multiply_scalar(255.0);
         v
     }
 
+    pub fn avg<T>(color: &T, samples_count: u64) -> T
+    where T: Vector<f64> + Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Copy {
+        let scale: f64 = 1.0 / samples_count as f64;
+        let mut v = color.multiply_scalar(scale);
+
+        v.clamp(0.0, 0.9999);
+        v
+    }
+
     pub fn r_to_n<T>(color: &T) -> T
-    where T: Vector + Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Copy {
+    where T: Vector<f64> + Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Copy {
         let v = color.divide_by_scalar(255.0);
         v
     }
@@ -85,23 +94,23 @@ impl Color {
     /// works only and only when the underlying type is Vec4f;
     /// it then applies the 4th index to each other element
     pub fn apply_alpha<T>(color: &T) -> T
-    where T: Vector + Index<usize, Output = T> + IndexMut<usize, Output=f64> + Default + Copy {
+    where T: Vector<f64> + Index<usize, Output = T> + IndexMut<usize, Output=f64> + Default + Copy {
         let v = color.divide_by_scalar(255.0);
         v
     }
 
     pub fn n_clamp<T>(color: &T) -> T
-    where T: Vector + Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Copy {
+    where T: Vector<f64> + Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Copy {
         VectorArithmetic::clamp(color, 0.0, 1.0)
     }
     pub fn r_clamp<T>(color: &T) -> T
-    where T: Vector + Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Copy {
+    where T: Vector<f64> + Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Copy {
         VectorArithmetic::clamp(color, 0.0, 255.0)
     }
 }
 
 
-pub trait ProceduralTexture: DynClone {
+pub trait ProceduralTexture: DynClone+Send+Sync {
     fn get_texture(&self, params: Option<&Params>) -> NColor3;
     fn equals(&self, other: &dyn ProceduralTexture) -> bool;
 }
@@ -119,3 +128,4 @@ impl PartialEq for Box<dyn ProceduralTexture> {
         self.equals(other.as_ref())
     }
 }
+

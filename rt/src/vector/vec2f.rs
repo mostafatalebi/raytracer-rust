@@ -40,7 +40,7 @@ impl Mul<f64> for Vec2f {
 }
 
 
-impl Vector for Vec2f {
+impl Vector<f64> for Vec2f {
     fn size(&self) -> usize {
         2
     }
@@ -61,12 +61,12 @@ impl Vector for Vec2f {
         VectorArithmetic::divide_by_scalar(self, other)
     }
 
-    fn hat(&self) -> Self {
-        Utils::normalize(self)
-    }
-
     fn trunc(&self, num: i64) -> Self {
         Vec2f([f64::trunc(self[0] * num as f64) / num as f64, f64::trunc(self[1] * num as f64) / num as f64])
+    }
+
+    fn hat(&self) -> Self {
+        Utils::normalize(self)
     }
 
     fn magnitude(&self) -> f64 {
@@ -83,6 +83,11 @@ impl Vector for Vec2f {
 
     fn dot(&self, other: &Self) -> f64 {
         VectorArithmetic::dot(self, other)
+    }
+
+    fn clamp(&mut self, min: f64, max: f64) {
+        self[0] = self[0].clamp(min, max);
+        self[1] = self[1].clamp(min, max);
     }
 }
 

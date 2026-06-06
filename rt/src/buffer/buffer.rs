@@ -8,6 +8,7 @@ use crate::colors::types::Color;
 use crate::vector::constants::BLACK;
 use crate::vector::vec4f::Vec4f;
 
+#[derive(Debug, Clone)]
 pub struct Buffer {
     pub x: usize,
     pub y: usize,
@@ -39,12 +40,16 @@ impl Buffer {
         }
     }
 
+    pub fn get_size(&self) -> usize {
+        self._buffer_size
+    }
+
 
     // allows saving RGB at the same as well as internally increment
     // index ptr. You cannot save it at a specific index, this is used
     // for sequential insertion
-    pub fn save_pixel_color(&mut self, index: usize, colors: Vec4f) {
-        self.rgba[index] = colors;
+    pub fn save_pixel_color(&mut self, index: usize, color: Vec4f) {
+        self.rgba[index] = color;
     }
 
     pub fn add_heatmap_entry(&mut self, index: usize, value: i64) {

@@ -10,20 +10,30 @@ use crate::shader::shader::BaseShader;
 use crate::vector::arithmetic::VectorArithmetic;
 use crate::vector::types::{Vec3i, Vector};
 use crate::vector::vec3f::Vec3f;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::Ordering::SeqCst;
 use rand::random;
 use crate::colors::types::{Color, NColor3};
 use crate::light::light::{BaseLight, LightEnum};
 use crate::object::geometry::GeometryType::{Polygon, Procedural};
 use crate::object::procedural::get_sphere_normal;
 use crate::vector::constants::BLACK;
+use rayon::prelude::*;
+use crate::buffer::types::BufferIndex;
+use crate::camera::types::AntiAliasingMethod;
 
 pub struct Tracer {
     max_depth: i8,
     max_traversal_distance: i64,
     max_reflection_traversal: i8,
     max_sample_ray: i8,
-    parallelism: i8,
+    num_of_threads: usize,
+    anti_aliasing: u8,
+    anti_aliasing_method: AntiAliasingMethod,
+
+    pub total_rays_to_process: Arc<AtomicU64>,
+    pub rays_processed_sofar: Arc<AtomicU64>,
 }
 
 impl Default for Tracer {
@@ -33,36 +43,96 @@ impl Default for Tracer {
             max_traversal_distance: 100,
             max_reflection_traversal: 1,
             max_sample_ray: 1,
-            parallelism: 1,
+            num_of_threads: 1,
+            anti_aliasing: 1,
+            anti_aliasing_method: AntiAliasingMethod::Uniform,
+            total_rays_to_process: Arc::new(AtomicU64::new(0)),
+            rays_processed_sofar: Arc::new(AtomicU64::new(0)),
         }
     }
 }
 impl Tracer {
+
+    pub fn set_num_of_threads(&mut self, num_of_threads: usize) {
+        if num_of_threads < 1 {
+            panic!("num_of_threads must be greater than 0");
+        }
+        self.num_of_threads = num_of_threads;
+    }
+
+    pub fn set_anti_aliasing(&mut self, aa: u8, method: AntiAliasingMethod) {
+        if aa < 1 {
+            panic!("anti_aliasing must be greater than 0");
+        }
+        self.anti_aliasing_method = method;
+        self.anti_aliasing = aa;
+    }
+
+    pub fn create_workload(&mut self, buffer: &mut Buffer) -> Vec<BufferIndex> {
+        let mut workload = vec![BufferIndex::default(); buffer.get_size()];
+        let mut pixel = buffer.get_next_pixel_indices();
+        let mut i = 0usize;
+
+        while pixel.is_some() {
+            workload[i] = pixel.clone().unwrap();
+
+            pixel = buffer.get_next_pixel_indices();
+            i += 1
+        }
+        self.total_rays_to_process.store(buffer.get_size() as u64 * self.anti_aliasing as u64, SeqCst);
+        workload
+    }
+
     pub fn walk_pixel_by_pixel(
-        &self,
+        &mut self,
         buffer: &mut Buffer,
         cam: &StandardCamera,
         s: &Arc<RwLock<Scene>>,
     ) -> Buffer {
-        let mut pixel = buffer.get_next_pixel_indices();
-        let mut output_buffer = Buffer::new(buffer.x, buffer.y);
-        while pixel.is_some() {
-            let buffer_index = pixel.unwrap();
+        let mut workload = self.create_workload(buffer);
+        let output_buffer = Arc::new(Mutex::new(Buffer::new(buffer.x, buffer.y)));
 
-            let pixel_coordinate = cam.get_pixel_coordinates(buffer_index[1] as i64, buffer_index[2] as i64);
-            let mut rc = RayContext::new_for_camera_ray(
-                &cam.transform.local.translate,
-                Some(buffer_index),
-            );
-            rc.camera_position = cam.transform.local.translate;
-            rc.pixel_coordinate = Some(pixel_coordinate);
-            rc.ray_dir = (&rc.pixel_coordinate.unwrap() - &rc.origin_coordinate).normalized();
-            self.process_ray_for_objects(&mut rc, Some(&mut output_buffer), s);
+        let thread_pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(self.num_of_threads)
+            .start_handler(|thread_index| {
+                //println!("thread #{} started", thread_index);
+            })
+        .build();
 
+        let buffer_cloned = output_buffer.clone();
+        thread_pool.unwrap().install(|| {
+            workload.par_iter_mut().for_each(|tile| {
+                let pixel_coordinate = cam.get_anti_aliased_pixel_coordinates(tile[1] as i64, tile[2] as i64, self.anti_aliasing, &self.anti_aliasing_method);
+                let mut rc = RayContext::new_for_camera_ray(
+                    &cam.transform.local.translate,
+                    Some(tile.clone()),
+                );
+                rc.camera_position = cam.transform.local.translate;
+                let mut pixel_color = NColor3::default();
+                let mut hit_count: usize = 0;
+                for pixel_c in pixel_coordinate {
+                    let ray_dir = (&pixel_c - &rc.origin_coordinate).normalized();
+                    rc.reset_for_next_iteration(ray_dir, Some(pixel_c));
+                    if let Some(color) = self.process_ray_for_objects(&mut rc, s) {
+                        pixel_color += color;
+                        hit_count += 1;
+                    }
+                    self.rays_processed_sofar.fetch_add(1, Ordering::SeqCst);
 
-            pixel = buffer.get_next_pixel_indices();
-        }
-        output_buffer
+                }
+
+                if hit_count > 0 {
+                    let mut output = buffer_cloned.lock().unwrap();
+                    let normalized_color_avg: NColor3 = Color::avg(&pixel_color, hit_count as u64);
+                    output.save_pixel_color(
+                        tile[0],
+                        Color::n_to_r(&normalized_color_avg.to_4()),
+                    );
+                }
+            });
+        });
+
+        output_buffer.clone().lock().unwrap().clone()
     }
 
 
@@ -73,7 +143,6 @@ impl Tracer {
     pub fn process_ray_for_objects(
         &self,
         mut rc: &mut RayContext,
-        output: Option<&mut Buffer>,
         s: &Arc<RwLock<Scene>>,
     ) -> Option<NColor3> {
         let geometries: Vec<Geometry>;
@@ -83,7 +152,7 @@ impl Tracer {
         }
 
         for ref obj in geometries.iter().enumerate() {
-            rc.reset_for_next_iteration(obj.0, obj.1.render_attributes.shadows.receive);
+            rc.refresh_for_new_object_test(obj.0, obj.1.render_attributes.shadows.receive);
 
 
             if let Ok(()) = self.trace_single_ray(&obj.1, &mut rc) {
@@ -91,25 +160,15 @@ impl Tracer {
             }
         }
 
-        if rc.has_ever_intersected() {
-            if let Some(normalized_color) =
-                self.on_ray_target_intersection(&mut rc, s)
-            {
-                if let Some(output) = output {
-                    output.save_pixel_color(
-                        rc.buffer_index.clone().unwrap()[0],
-                        Color::n_to_r(&normalized_color.to_4()),
-                    );
 
-                }
-                return Some(normalized_color);
-            }
+        if rc.has_ever_intersected() {
+            return self.on_ray_target_intersection(&mut rc, s);
         }
         None
     }
 
     pub fn trace_from_camera_to_scene(
-        &self,
+        &mut self,
         input_buffer: &mut Buffer,
         cam: &StandardCamera,
         s: Arc<RwLock<Scene>>,
@@ -125,16 +184,9 @@ impl Tracer {
     }
 
 
-
-    pub fn callback_object_iteration(&self, obj: &Geometry, mut ray_intersection: &mut RayContext) {
-        if let Ok(()) = self.trace_single_ray(&obj, &mut ray_intersection) {
-            // yet nothing
-        }
-    }
-
     /// this method is invoked when a ray intersects
-    /// an object. This ray can be an ordinary camera
-    /// ray, a shadow, a reflection or a refraction (not yet)
+    /// an object. The ray can be an ordinary camera
+    /// ray (main ray), a shadow, a reflection or a refraction (not yet)
     /// ray. Hence, the origin of the call can be from
     /// a camera ray, a shadow ray, a reflection or
     /// refraction ray. Though all rays except camera
@@ -160,12 +212,13 @@ impl Tracer {
         match shader {
             Some(ref mut ss) => {
                 let mut main_point_color = NColor3::default();
+                let shader_ptr = ss.1;
                 for light in &scene.lights {
-                    if rc.can_continue_for_reflection() && ss.1.cast_reflection() {
+                    if rc.can_continue_for_reflection() && shader_ptr.cast_reflection() {
                         let mut rc_reflection = rc.fork_for_reflection(RayType::ReflectionRay, &rc.intersection_coordinate,
                                                                        rc.intersected_face_normal, rc.intersected_face_vertex_normal);
 
-                        ss.1.set_reflection_properties(&mut rc_reflection);
+                        shader_ptr.set_reflection_properties(&mut rc_reflection);
                         rc.increment_reflection_level();
                         match self.trace_rays_for_reflection(&mut rc_reflection, s) {
                             Err(err) => {
@@ -173,7 +226,7 @@ impl Tracer {
                             },
                             Ok(res) => {
                                 if let Some(ref_color) = res {
-                                    main_point_color += ss.1.get_reflection_final_color(&ref_color);
+                                    main_point_color += shader_ptr.get_reflection_final_color(&ref_color);
                                 }
                             }
                         }
@@ -188,7 +241,7 @@ impl Tracer {
                             },
                             Ok(()) => {
                                 if rc_shadow.is_in_shadow == false {
-                                    match ss.1.compute(&rc, &light) {
+                                    match shader_ptr.compute(&rc, &light) {
                                         Ok(color) => {
                                             main_point_color += color
                                         },
@@ -202,7 +255,7 @@ impl Tracer {
                             }
                         }
                     } else {
-                        match ss.1.compute(&rc, &light) {
+                        match shader_ptr.compute(&rc, &light) {
                             Ok(color) => {
                                 main_point_color += color
                             },
@@ -264,13 +317,13 @@ impl Tracer {
                 }
                 let rnd_ray_dir = (&(direct_ray_dir + random_ray * rc.reflection_glossiness * REFLECTION_GLOSSINESS_SCATTER_FACTOR)).normalized();
                 rc.ray_dir = rnd_ray_dir;
-                if let Some(color) = self.process_ray_for_objects(rc, None, sc) {
+                if let Some(color) = self.process_ray_for_objects(rc, sc) {
                     final_color += color;
                 }
             }
             return Ok(Some(final_color.divide_by_scalar(num_of_emitted_rays as f64)));
         }
-        if let Some(color) = self.process_ray_for_objects(rc, None, sc) {
+        if let Some(color) = self.process_ray_for_objects(rc, sc) {
             return Ok(Some(color));
         }
         Ok(None)
@@ -454,6 +507,7 @@ impl Tracer {
             }
         }
     }
+
 }
 
 #[cfg(test)]
@@ -472,7 +526,7 @@ mod test {
         let focal_length = 50.0;
         let image_plane_width = 100.0;
         let image_plane_height = 100.0;
-        let ndc = StandardCamera::get_ndc(&Vec2i::new(2, 2), 0, 0);
+        let ndc = StandardCamera::get_ndc(&Vec2i::new(2, 2), 0.0, 0.0);
         assert_eq!(0.25, ndc[0]);
         assert_eq!(0.25, ndc[1]);
         let screen_space = StandardCamera::get_screen_space(ndc[0], ndc[1]);
@@ -522,7 +576,7 @@ mod test {
         if s.is_ok() {
             let s = s.unwrap();
             let mut renderer = Renderer::new(Arc::new(RwLock::new(s)));
-            renderer.render();
+            _ = renderer.render();
         }
     }
 }

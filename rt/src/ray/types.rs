@@ -1,11 +1,7 @@
 use crate::buffer::types::BufferIndex;
 use crate::common::constants::{EPS, MAX_REFLECTION_SAMPLES};
-use crate::common::params::{Params, Value};
-use crate::shader::shader::ShaderEnum;
+use crate::common::params::{Params};
 use crate::vector::vec3f::Vec3f;
-use std::any::Any;
-use std::collections::HashMap;
-use crate::common::obj_types::ObjType;
 use crate::object::geometry::{GeometrySubType, GeometryType};
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -48,14 +44,15 @@ pub struct RayContext {
     pub intersected_face_index: Option<usize>,
     pub intersected_face_normal: Option<Vec3f>,
     pub intersected_face_vertex_normal: Option<Vec3f>,
+    pub intersection_to_nearest_edge_distance: u64,
     pub intersected: bool,
     pub intersection_coordinate: Vec3f,
     pub ever_intersected: bool,
     pub next_object_index: Option<usize>,
     pub shader_index: usize,
     pub intersection_distance: f64,
-    pub extra_params: Params,
-    pub memory_buffer: Params,
+    pub extra_params: Option<Params>,
+    pub memory_buffer: Option<Params>,
     pub previous_closest_distance: f64,
     pub obj_receive_shadow: bool,
     pub obj_cast_reflection: bool,
@@ -65,7 +62,7 @@ pub struct RayContext {
     pub reflection_glossiness_samples: i8,
     pub reflection_glossiness: f64,
     pub ray_type: RayType,
-    pub is_in_shadow: bool,
+    pub is_in_shadow: bool
 }
 
 impl RayContext {
@@ -111,29 +108,40 @@ impl RayContext {
         rc
     }
 
-    pub fn reset_for_next_iteration(&mut self, obj_index: usize, receive_shadow: bool) {
+    pub fn reset_for_next_iteration(&mut self, ray_dir: Vec3f, pixel_coordinate: Option<Vec3f>) {
+        self.ray_dir = ray_dir;
+        self.pixel_coordinate = pixel_coordinate;
+        self.intersected_object_index = None;
+        self.intersected_object_centroid = None;
+        self.intersected_geo_type = None;
+        self.intersected_geo_subtype = None;
+        self.intersected_face_index = None;
+        self.intersected_face_normal = None;
+        self.intersected_face_vertex_normal = None;
+
+        self.intersected = false;
+        self.intersection_coordinate = Vec3f::default();
+        self.ever_intersected = false;
+        self.next_object_index = None;
+        self.shader_index = 0;
+        self.intersection_distance = f64::MAX;
+
+        self.previous_closest_distance = f64::MAX;
+        self.obj_receive_shadow = false;
+        self.reflection_current_level = 0;
+        self.is_in_shadow = false;
+    }
+
+    pub fn refresh_for_new_object_test(&mut self, obj_index: usize, receive_shadow: bool) {
         self.intersected = false;
         self.next_object_index = Some(obj_index);
         self.obj_receive_shadow = receive_shadow;
     }
 
-    pub fn save_to_memory(&mut self, key: String, value: Value) {
-        self.memory_buffer.set(key, value);
-    }
-
-    pub fn get_from_memory(&mut self, key: &str, value: Value) -> Option<&Value> {
-        self.memory_buffer.get(key)
-    }
 
 
     pub fn has_ever_intersected(&self) -> bool {
         self.ever_intersected
-    }
-
-    pub fn reset_for_a_new_test(&mut self) {
-        self.intersected = false;
-        self.intersection_distance = 0.0;
-        self.intersection_coordinate = Vec3f::default();
     }
 
     pub fn is_closest_so_far(&self, curr_dist: f64) -> bool {
@@ -210,12 +218,13 @@ impl Default for RayContext {
             intersected_face_index: None,
             intersected_face_normal: None,
             intersected_face_vertex_normal: None,
+            intersection_to_nearest_edge_distance: 0,
             next_object_index: None,
             shader_index: 0,
             intersection_distance: 0.0,
             intersection_coordinate: Default::default(),
-            extra_params: Default::default(),
-            memory_buffer: Default::default(),
+            extra_params: None,
+            memory_buffer: None,
             intersected: false,
             ever_intersected: false,
             previous_closest_distance: f64::INFINITY,
@@ -227,7 +236,7 @@ impl Default for RayContext {
             reflection_glossiness_samples: 0,
             reflection_glossiness: 0.0,
             ray_type: RayType::default(),
-            is_in_shadow: false,
+            is_in_shadow: false
         }
     }
 }

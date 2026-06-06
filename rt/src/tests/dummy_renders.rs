@@ -73,14 +73,15 @@ mod test_dummy_renders {
 
         let mut renderer = Renderer::new(Arc::new(RwLock::new(s)));
 
-        renderer.render();
+        _ = renderer.render();
     }
+
     #[test]
     fn test_scene_001() {
         let s = get_scene_001();
 
         let mut renderer = Renderer::new(Arc::new(RwLock::new(s)));
 
-        renderer.render();
+        _ = renderer.render();
     }
 }

@@ -5,12 +5,12 @@ use crate::vector::arithmetic::VectorArithmetic;
 use crate::vector::vec2f::Vec2f;
 use crate::vector::vec3f::Vec3f;
 
-pub trait Vector {
+pub trait Vector<S> {
     fn size(&self) -> usize;
     fn subtract(&self, other: &Self) -> Self;
     fn add_with(&self, other: &Self) -> Self;
-    fn multiply_scalar(&self, other: f64) -> Self;
-    fn divide_by_scalar(&self, other: f64) -> Self;
+    fn multiply_scalar(&self, other: S) -> Self;
+    fn divide_by_scalar(&self, other: S) -> Self;
 
     // truncates each component of the vector to a floating
     // number with fewer decimals, depending on the num provided
@@ -26,6 +26,8 @@ pub trait Vector {
     fn normalized(&self) -> Self;
 
     fn dot(&self, other: &Self) -> f64;
+
+    fn clamp(&mut self, min: S, max: S);
 }
 
 
@@ -49,7 +51,7 @@ impl Vec2i {
     }
 }
 
-impl Vector for Vec2i {
+impl Vector<i64> for Vec2i {
     fn size(&self) -> usize {
         2
     }
@@ -62,22 +64,21 @@ impl Vector for Vec2i {
         VectorArithmetic::add(self, other)
     }
 
-    fn multiply_scalar(&self, other: f64) -> Self {
-        VectorArithmetic::multiply_scalar(self, other as i64)
+    fn multiply_scalar(&self, other: i64) -> Self {
+        VectorArithmetic::multiply_scalar(self, other)
     }
 
-    fn divide_by_scalar(&self, other: f64) -> Self {
-        // not supported
+    fn divide_by_scalar(&self, other: i64) -> Self {
+        VectorArithmetic::divide_by_scalar(self, other)
+    }
+
+    fn trunc(&self, num: i64) -> Self {
         self.clone()
     }
 
     fn hat(&self) -> Self {
         // not implementable
         Vec2i::new(0,0)
-    }
-
-    fn trunc(&self, num: i64) -> Self {
-        self.clone()
     }
 
     fn magnitude(&self) -> f64 {
@@ -89,11 +90,17 @@ impl Vector for Vec2i {
     }
 
     fn normalized(&self) -> Self {
-        Utils::normalize(self)
+        // not implemented
+        self.clone()
     }
 
     fn dot(&self, other: &Self) -> f64 {
         VectorArithmetic::dot(self, other)
+    }
+
+    fn clamp(&mut self, min: i64, max: i64) {
+        self[0] = self[0].clamp(min, max);
+        self[1] = self[1].clamp(min, max);
     }
 }
 
@@ -152,7 +159,7 @@ impl IndexMut<usize> for Vec3i {
     }
 }
 
-impl Vector for Vec3i {
+impl Vector<i64> for Vec3i {
     fn size(&self) -> usize {
         2
     }
@@ -165,22 +172,21 @@ impl Vector for Vec3i {
         VectorArithmetic::add(self, other)
     }
 
-    fn multiply_scalar(&self, other: f64) -> Self {
-        VectorArithmetic::multiply_scalar(self, other as i64)
+    fn multiply_scalar(&self, other: i64) -> Self {
+        VectorArithmetic::multiply_scalar(self, other)
     }
 
-    fn divide_by_scalar(&self, other: f64) -> Self {
-        // not supported
+    fn divide_by_scalar(&self, other: i64) -> Self {
+        VectorArithmetic::divide_by_scalar(self, other)
+    }
+
+    fn trunc(&self, num: i64) -> Self {
         self.clone()
     }
 
     fn hat(&self) -> Self {
         // not implementable
         Vec3i::new(0,0, 0)
-    }
-
-    fn trunc(&self, num: i64) -> Self {
-        self.clone()
     }
 
     fn magnitude(&self) -> f64 {
@@ -192,11 +198,18 @@ impl Vector for Vec3i {
     }
 
     fn normalized(&self) -> Self {
-        Utils::normalize(self)
+        // not implemented
+        self.clone()
     }
 
     fn dot(&self, other: &Self) -> f64 {
         VectorArithmetic::dot(self, other)
+    }
+
+    fn clamp(&mut self, min: i64, max: i64) {
+        self[0] = self[0].clamp(min, max);
+        self[1] = self[1].clamp(min, max);
+        self[2] = self[1].clamp(min, max);
     }
 }
 

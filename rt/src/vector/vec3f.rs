@@ -1,3 +1,4 @@
+use std::iter::Sum;
 use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Sub};
 use serde::{Deserialize, Serialize};
 use crate::vector::arithmetic::VectorArithmetic;
@@ -9,7 +10,7 @@ use crate::vector::vec4f::Vec4f;
 #[derive(Debug, Default, Deserialize, Serialize, Clone, Copy)]
 pub struct Vec3f(pub [f64; 3]);
 
-impl Vector for Vec3f {
+impl Vector<f64> for Vec3f {
 
     fn size(&self) -> usize {
         3
@@ -56,6 +57,12 @@ impl Vector for Vec3f {
 
     fn dot(&self, other: &Self) -> f64 {
         VectorArithmetic::dot(self, other)
+    }
+
+    fn clamp(&mut self, min: f64, max: f64) {
+        self[0] = self[0].clamp(min, max);
+        self[1] = self[1].clamp(min, max);
+        self[2] = self[1].clamp(min, max);
     }
 }
 
@@ -108,6 +115,12 @@ impl Vec3f {
     
     pub fn create_by<F: Fn() -> f64>(f: F) -> Vec3f {
         Vec3f::new(f(), f(), f())
+    }
+
+    pub fn reset(&mut self) {
+        self[0] = 0.0;
+        self[1] = 0.0;
+        self[2] = 0.0;
     }
 }
 
@@ -215,3 +228,17 @@ impl Add for Vec3f {
         return self.add_with(&rhs)
     }
 }
+
+impl Sum<Vec3f> for Vec3f {
+    fn sum<I: Iterator<Item = Vec3f>>(iter: I) -> Self {
+        iter.fold(Vec3f::new(0.0, 0.0, 0.0), |a, b| a + b)
+    }
+}
+
+
+impl<'a> Sum<&'a Vec3f> for Vec3f {
+    fn sum<I: Iterator<Item = &'a Vec3f>>(iter: I) -> Self {
+        iter.fold(Vec3f::new(0.0, 0.0, 0.0), |a, b| a + *b)
+    }
+}
+

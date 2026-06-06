@@ -1,3 +1,3 @@
 pub mod types;
-pub mod input;
+pub mod procedural;
 mod ramp;

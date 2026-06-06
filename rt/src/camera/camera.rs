@@ -1,5 +1,7 @@
 use std::ops::{Add, Mul};
+use rand::{random, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
+use crate::camera::types::AntiAliasingMethod;
 use crate::colors::types::{InputChannel, NColor3};
 use crate::common::transform::Transform;
 use crate::quaternion::quaternion::Quaternion;
@@ -59,6 +61,7 @@ pub struct StandardCamera {
 
     #[serde(skip)]
     background: InputChannel,
+
 }
 
 #[typetag::serde]
@@ -91,7 +94,7 @@ impl StandardCamera {
             right: Default::default(),
             image_plane_width: 0.0,
             image_plane_height: 0.0,
-            background: InputChannel::new_with_color(BLACK)
+            background: InputChannel::new_with_color(BLACK),
         };
 
         if let Some(o) = origin {
@@ -175,14 +178,47 @@ impl StandardCamera {
     }
 
 
-    // i, j indices of the pixel's column and row
-    // returns Vec3f 3d position of the pixel on image plane
-    pub fn get_pixel_coordinates(&self, i: i64, j: i64) -> Vec3f {
-        // 0.5 ensure it calculates from a center of the pixel (1
-        // being its right and 0 its left)
-        let ndc = StandardCamera::get_ndc(&self.resolution, i, j);
-        let screen_space = StandardCamera::get_screen_space(ndc[0], ndc[1]);
+    pub fn get_anti_aliased_pixel_coordinates(&self, i: i64, j: i64, anti_aliasing: u8, method: &AntiAliasingMethod) -> Vec<Vec3f> {
+        let mut pixels = vec![Vec3f::default(); anti_aliasing as usize];
+        for k in 0..anti_aliasing {
+            pixels[k as usize] = self.get_pixel_coordinates_with_sampler(i, j, k, anti_aliasing, &method);
+        }
 
+        pixels
+    }
+
+    fn get_pixel_coordinates_with_sampler(&self, i: i64, j: i64, k: u8, total_samples_count: u8, method: &AntiAliasingMethod) -> Vec3f {
+        let i_sample: f64;
+        let j_sample: f64;
+        match method {
+            AntiAliasingMethod::Uniform => {
+                let each_grid_cell = 1.0 / (total_samples_count+1) as f64;
+                i_sample = i as f64 + (each_grid_cell * (k+1) as f64);
+                j_sample = j as f64 + (each_grid_cell * (k+1) as f64);
+            },
+            AntiAliasingMethod::MonteCarlo => {
+                i_sample = i as f64 + random::<f64>();
+                j_sample = j as f64 + random::<f64>();
+            }
+        }
+
+        let ndc = StandardCamera::get_ndc(&self.resolution, i_sample, j_sample);
+        let screen_space = StandardCamera::get_screen_space(ndc[0], ndc[1]);
+        let fov = Utils::calc_fov(&self._sensor_size, &self.focal_length);
+        let scale = (fov[1] / 2.0).tan();
+        let x = screen_space[0] * self.aspect_ratio * scale;
+        let y = screen_space[1] * scale;
+
+        self.transform.local.translate
+            .add_with(&self.forward)
+            .add_with(&self.right.multiply_scalar(x))
+            .add_with(&self.up.multiply_scalar(y))
+    }
+
+
+    pub fn get_pixel_coordinates(&self, i: i64, j: i64) -> Vec3f {
+        let ndc = StandardCamera::get_ndc(&self.resolution, i as f64, j as f64);
+        let screen_space = StandardCamera::get_screen_space(ndc[0], ndc[1]);
         let fov = Utils::calc_fov(&self._sensor_size, &self.focal_length);
         let scale = (fov[1] / 2.0).tan();
         let x = screen_space[0] * self.aspect_ratio * scale;
@@ -200,9 +236,9 @@ impl StandardCamera {
     // in the range 0 to 1.
     // This function gets used in conjunction with get_screen_space to convert pixel indices
     // to screen coordinates.
-    pub fn get_ndc(res: &Vec2i, i: i64, j: i64) -> [f64; 2] {
-        [(i as f64 + 0.5) / res[0] as f64,
-        (j as f64 + 0.5) / res[1] as f64]
+    pub fn get_ndc(res: &Vec2i, i: f64, j: f64) -> [f64; 2] {
+        [(i) / res[0] as f64,
+        (j) / res[1] as f64]
     }
 
     // converts NDC to screen space
@@ -254,6 +290,7 @@ impl StandardCamera {
     pub fn sample_background(&self, u: f64, v: f64) -> NColor3 {
         BLACK
     }
+
 }
 
 
@@ -270,14 +307,11 @@ mod tests {
         assert_eq!(pos.trunc(10000), Vec3f::new(-0.2375, 0.2375, 50.0));
 
         let expected_ndc = [(20.0+0.5)/1920f64, (3.0+0.5)/1080f64];
-        let real_ndc = StandardCamera::get_ndc(&Vec2i(RES_FHD), 20, 3);
+        let real_ndc = StandardCamera::get_ndc(&Vec2i(RES_FHD), 20.0, 3.0);
         assert_eq!(expected_ndc, real_ndc);
 
         let c = StandardCamera::new(Vec2i(RES_FHD), Vec2i([100,100]), Some(WORLD_Z),WORLD_UP,50.0, None);
         let pos = c.get_pixel_coordinates(1919, 1079);
         assert_eq!(pos.trunc(10000), Vec3f::new(0.4263, 0.2397, 50.0));
-
     }
-
-
 }

@@ -9,7 +9,7 @@ pub struct VectorArithmetic {
 
 impl VectorArithmetic {
     pub fn subtract<V, T>(a: &V, b: &V) -> V
-    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector,
+    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
           T: Sub<Output=T> + Copy {
         let mut r = V::default();
         let a_len = a.size();
@@ -25,7 +25,7 @@ impl VectorArithmetic {
     }
 
     pub fn add<V, T>(a: &V, b: &V) -> V
-    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector,
+    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
           T: Add<Output=T> + Copy {
         let mut r = V::default();
         let a_len = a.size();
@@ -41,7 +41,7 @@ impl VectorArithmetic {
     }
 
     pub fn multiply_scalar<V, T>(a: &V, b: T) -> V
-    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector,
+    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
           T: Mul<Output=T> + Copy {
         let mut r = V::default();
         let a_len = a.size();
@@ -54,7 +54,7 @@ impl VectorArithmetic {
     }
 
     pub fn divide_by_scalar<V, T>(a: &V, b: T) -> V
-    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector,
+    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
           T: Div<Output=T> + Copy {
         let mut r = V::default();
         let a_len = a.size();
@@ -67,7 +67,7 @@ impl VectorArithmetic {
     }
 
     pub fn comp_wise_mul<V, T>(a: &V, b: &V) -> V
-    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector, T: Mul<Output = T> + Copy {
+    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>, T: Mul<Output = T> + Copy {
         let mut r = V::default();
         let a_len = a.size();
         let mut i = 0;
@@ -79,7 +79,7 @@ impl VectorArithmetic {
     }
 
     pub fn cross3<V, T>(a: &V, b: &V) -> V
-    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector,
+    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
           T: Sub<Output=T> + Mul<Output=T> + Copy {
 
         let mut r = V::default();
@@ -96,7 +96,7 @@ impl VectorArithmetic {
 
     // dot product of two vectors
     pub fn dot<T, R>(a: &T, b: &T) -> f64
-    where T: Index<usize, Output = R> + Default + Vector,
+    where T: Index<usize, Output = R> + Default + Vector<R>,
     R: ToF64 + Copy {
         let a_len = a.size();
         let mut i = 0;
@@ -110,7 +110,7 @@ impl VectorArithmetic {
     }
 
     pub fn distance<T>(a: &T, b: &T) -> f64
-    where T: Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Vector {
+    where T: Index<usize, Output = f64> + IndexMut<usize, Output=f64> + Default + Vector<T> {
         let a_len = a.size();
         let mut i = 0;
         let mut r = 0f64;
@@ -121,8 +121,8 @@ impl VectorArithmetic {
         r.sqrt()
     }
 
-    pub fn clamp<T>(a: &T, min: f64, max: f64) -> T
-    where T: Index<usize, Output = f64> + IndexMut<usize> + Default + Vector,
+    pub fn clamp<T, R>(a: &T, min: f64, max: f64) -> T
+    where T: Index<usize, Output = f64> + IndexMut<usize> + Default + Vector<R>,
           {
         let mut r = T::default();
         let a_len = a.size();

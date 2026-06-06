@@ -6,5 +6,6 @@ pub mod transform;
 pub mod dummy_utils;
 pub mod params;
 pub mod types;
-mod rand;
+pub mod rand;
+pub mod stats;
 
