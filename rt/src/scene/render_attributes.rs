@@ -24,7 +24,7 @@ impl<'a> Default for RenderAttributes {
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct GeometryShadowAttributes {
-    // if the object cast shadow or not
+    // if the geometry cast shadow or not
     pub cast: bool,
 
     // if other objects can cast shadows on this
@@ -106,6 +106,7 @@ pub struct SmoothAttributes {
     pub enable: bool,
 
     // level of smoothness
+    // NOT implemented 
     #[serde(default, serialize_with = "ser_smooth_attr", deserialize_with = "de_smooth_attr")]
     pub level: SmoothLevel,
 }

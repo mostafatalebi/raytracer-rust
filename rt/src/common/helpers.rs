@@ -1,5 +1,7 @@
-use crate::object::geometry::Geometry;
+use crate::geometry::geometry::Geometry;
+use crate::vector::arithmetic::VectorArithmetic;
 use crate::vector::types::{Vec3i, Vector};
+use crate::vector::utils::Utils;
 use crate::vector::vec3f::Vec3f;
 
 // given current zero-based index v, and a matrix's column size m and row size n

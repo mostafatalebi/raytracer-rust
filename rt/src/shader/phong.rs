@@ -6,8 +6,8 @@ use crate::common::params::{Params, Value};
 use crate::common::types::NormalizedF;
 use crate::error::error::SysError;
 use crate::light::light::{BaseLight, LightEnum};
-use crate::object::geometry::Geometry;
-use crate::ray::types::RayContext;
+use crate::geometry::geometry::Geometry;
+use crate::ray::ray_context::RayContext;
 use crate::scene::scene::Scene;
 use crate::vector::vec3f::Vec3f;
 use crate::shader::shader::{BaseShader, ShaderEnum};
@@ -47,7 +47,8 @@ impl BaseShader for PhongShader {
         params.set("obj_type".to_string(), Value::from_str(format!("{}", rc.intersected_geo_type.clone().unwrap())));
         params.set("obj_subtype".to_string(), Value::from_str(format!("{}", rc.intersected_geo_subtype.clone().unwrap())));
         params.set("obj_center".to_string(), Value::from_vec3f(rc.intersected_object_centroid.clone().unwrap()));
-        let dir = light.get_displacement_vector(&rc.intersection_coordinate);
+        let dir = light.get_displacement_vector(None, &rc.intersection_coordinate);
+        let dir_n = dir.normalized();
         let res = light.compute_light(rc, &dir);
         match res {
             Some(color) => {
@@ -60,7 +61,7 @@ impl BaseShader for PhongShader {
 
         let mut final_color = &light_color * &self.diffuse.get_true_color(Some(&params)) * self.opacity;
         final_color = Color::n_clamp(&final_color);
-        let spec_calculated = &self.compute_specularity(&dir, rc);
+        let spec_calculated = &self.compute_specularity(&dir_n, rc);
         return Ok(&final_color * &light_color.add_with(spec_calculated));
     }
 
@@ -69,8 +70,8 @@ impl BaseShader for PhongShader {
     }
 
     fn set_reflection_properties(&self, rc: &mut RayContext) {
-        let face_n = rc.intersected_face_normal.unwrap();
-        rc.ray_dir = rc.ray_dir - 2.0*rc.ray_dir.dot(&face_n) * &face_n;
+        let normal = rc.get_proper_normal();
+        rc.ray_dir = rc.ray_dir - 2.0*rc.ray_dir.dot(&normal) * &normal;
         rc.reflection_glossiness_samples = self.get_reflection_samples();
         rc.reflection_glossiness = self.reflection_glossiness
     }
@@ -114,8 +115,9 @@ impl PhongShader {
     }
 
     fn compute_specularity(&self, light_dir: &Vec3f, rc: &RayContext) -> NColor3 {
+        let normal = rc.get_proper_normal();
         let halfway = (light_dir + &(&rc.camera_position - &rc.intersection_coordinate).normalized()).normalized();
-        let spec = self.specularity_color * f64::max(0.0, VectorArithmetic::dot(&rc.intersected_face_normal.unwrap(), &halfway)).powi(self.get_true_spec_factor(self.specularity_factor));
+        let spec = self.specularity_color * f64::max(0.0, VectorArithmetic::dot(&normal, &halfway)).powi(self.get_true_spec_factor(self.specularity_factor));
         spec * self.specularity_color
     }
 
@@ -170,7 +172,12 @@ impl PhongShader {
         geo.assign_shader(&self.get_id());
         self
     }
-    pub fn add_to_scene(&self, sc: &mut Scene) {
+    pub fn add_to_scene(&mut self, sc: &mut Scene) -> &mut Self {
         sc.shaders.push(self.get_shader());
+        self
+    }
+
+    pub fn get(&self) -> Self {
+        self.clone()
     }
 }

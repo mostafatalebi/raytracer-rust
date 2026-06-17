@@ -143,6 +143,12 @@ impl Vec3i {
         self.0.reverse();
         self.clone()
     }
+
+    pub fn reset(&mut self) {
+        self[0] = 0;
+        self[1] = 0;
+        self[2] = 0;
+    }
 }
 
 
@@ -219,6 +225,12 @@ impl PartialEq for Vec3i {
             return false;
         }
         true
+    }
+}
+
+impl From<Vec<i64>> for Vec3i {
+    fn from(v: Vec<i64>) -> Self {
+        Vec3i::new(v[0], v[1], v[2])
     }
 }
 

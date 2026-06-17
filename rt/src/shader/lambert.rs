@@ -4,8 +4,8 @@ use crate::colors::types::{Color, NColor3};
 use crate::common::types::NormalizedF;
 use crate::error::error::SysError;
 use crate::light::light::{BaseLight, LightEnum};
-use crate::object::geometry::Geometry;
-use crate::ray::types::RayContext;
+use crate::geometry::geometry::Geometry;
+use crate::ray::ray_context::RayContext;
 use crate::scene::scene::Scene;
 use crate::vector::constants::{BLACK, GRAY};
 use crate::vector::types::Vector;
@@ -30,7 +30,7 @@ impl BaseShader for LambertShader {
 
     fn compute(&self, collision: &RayContext, light: &LightEnum) -> Result<NColor3, SysError> {
         let mut light_color = NColor3::default();
-        let dir = light.get_displacement_vector(&collision.intersection_coordinate);
+        let dir = light.get_displacement_vector(None, &collision.intersection_coordinate);
         let res = light.compute_light(collision, &dir);
         match res {
             Some(color) => {
@@ -106,8 +106,13 @@ impl LambertShader {
         geo.assign_shader(&self.get_id());
         self
     }
-    pub fn add_to_scene(&self, sc: &mut Scene) {
+    pub fn add_to_scene(&mut self, sc: &mut Scene) -> &mut Self {
         sc.shaders.push(self.get_shader());
+        self
     }
 
+
+    pub fn get(&mut self) -> Self {
+        self.clone()
+    }
 }

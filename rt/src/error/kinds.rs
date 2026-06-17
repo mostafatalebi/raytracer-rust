@@ -1,7 +1,8 @@
 use crate::error::kinds::ErrorKind::Generic;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ErrorKind {
+    FileLoadFailed,
     InvalidData,
     InvalidVersion,
     BadSceneDescription,
@@ -24,12 +25,14 @@ pub enum ErrorKind {
     ObjectWithoutShader,
     SurfaceNormalNotFound,
     GeometryTypeUndefined,
+    Unparsable,
 }
 
 
 impl From<&str> for ErrorKind {
     fn from(s: &str) -> ErrorKind {
         match s {
+            "FileLoadFailed" =>            ErrorKind::FileLoadFailed,
             "InvalidData" =>            ErrorKind::InvalidData,
             "InvalidVersion" =>         ErrorKind::InvalidVersion,
             "InvalidGeometryType" =>    ErrorKind::InvalidGeometryType,
@@ -47,6 +50,7 @@ impl From<&str> for ErrorKind {
             "FaceIdNotFound" =>         ErrorKind::FaceIdNotFound,
             "ObjectWithoutShader" =>         ErrorKind::ObjectWithoutShader,
             "SurfaceNormalNotFound" =>         ErrorKind::SurfaceNormalNotFound,
+            "Unparsable" =>         ErrorKind::Unparsable,
             &_ => Generic,
         }
     }
@@ -55,6 +59,7 @@ impl From<&str> for ErrorKind {
 impl From<ErrorKind> for String {
     fn from(kind: ErrorKind) -> String {
         match kind {
+            ErrorKind::FileLoadFailed =>           String::from("FileLoadFailed"),
             ErrorKind::InvalidData =>           String::from("InvalidData"),
             ErrorKind::InvalidVersion =>        String::from("InvalidVersion"),
             ErrorKind::InvalidGeometryType =>   String::from("InvalidGeometryType"),
@@ -77,6 +82,7 @@ impl From<ErrorKind> for String {
             ErrorKind::ObjectWithoutShader =>        String::from("ObjectWithoutShader"),
             ErrorKind::SurfaceNormalNotFound =>        String::from("SurfaceNormalNotFound"),
             ErrorKind::GeometryTypeUndefined => String::from("GeometryTypeUndefined"),
+            ErrorKind::Unparsable => String::from("Unparsable"),
         }
     }
 }

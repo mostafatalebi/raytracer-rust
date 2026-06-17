@@ -1,8 +1,8 @@
-use std::ops::{Add, Mul};
-use rand::{random, thread_rng, Rng};
+use rand::{random};
 use serde::{Deserialize, Serialize};
 use crate::camera::types::AntiAliasingMethod;
 use crate::colors::types::{InputChannel, NColor3};
+use crate::common::id::Id;
 use crate::common::transform::Transform;
 use crate::quaternion::quaternion::Quaternion;
 use crate::vector::constants::{BLACK, WORLD_RIGHT, WORLD_UP, WORLD_Z};
@@ -13,7 +13,6 @@ use crate::vector::vec3f::Vec3f;
 
 #[typetag::serde]
 pub trait BaseCamera{
-    fn get_id(&self) -> String;
 }
 
 
@@ -35,13 +34,6 @@ pub struct StandardCamera {
 
     // the direction at which the camera is looking
     pub look_at:        Option<Vec3f>,
-
-    #[serde(skip)]
-    // this is the imaginary plan used for perspective
-    // rendering
-    pub image_plane_width: f64,
-    #[serde(skip)]
-    pub image_plane_height: f64,
 
     // lens focal length, default 50mm
     pub focal_length:   f64,
@@ -66,9 +58,7 @@ pub struct StandardCamera {
 
 #[typetag::serde]
 impl BaseCamera for StandardCamera {
-    fn get_id(&self) -> String {
-        self.id.clone()
-    }
+
 }
 
 
@@ -92,8 +82,6 @@ impl StandardCamera {
             forward: Default::default(),
             up: up,
             right: Default::default(),
-            image_plane_width: 0.0,
-            image_plane_height: 0.0,
             background: InputChannel::new_with_color(BLACK),
         };
 
@@ -133,8 +121,6 @@ impl StandardCamera {
     pub fn calc_procedural_image_plane(&mut self) {
         // FOV is calculated using: 2 x arctan(sensor / 2 * focal length)
         self._fov = Utils::calc_fov(&self._sensor_size, &self.focal_length);
-        self.image_plane_height = 2.0 * self.focal_length * (self._fov[1]/ 2.0).tan();
-        self.image_plane_width = self.image_plane_height * self.aspect_ratio;
     }
 
     pub fn create_frustum(&mut self, fov_y: f64, aspect: f64, near: f64, far: f64) -> [Vec3f; 8]{
@@ -291,6 +277,12 @@ impl StandardCamera {
         BLACK
     }
 
+}
+
+impl Id for StandardCamera {
+    fn get_id(&self) -> String {
+        self.id.clone()
+    }
 }
 
 

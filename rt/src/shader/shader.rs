@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use crate::colors::types::NColor3;
 use crate::error::error::SysError;
 use crate::light::light::LightEnum;
-use crate::ray::types::RayContext;
+use crate::ray::ray_context::RayContext;
 use crate::shader::face_shader::FaceShader;
+use crate::shader::flat::FlatShader;
 use crate::shader::lambert::LambertShader;
 use crate::shader::phong::PhongShader;
 use crate::shader::shader::ShaderEnum::Wireframe;
@@ -30,6 +31,8 @@ pub enum ShaderEnum {
     FaceShader(FaceShader),
     #[serde(rename="wire_frame")]
     Wireframe(WireframeShader),
+    #[serde(rename="flat")]
+    Flat(FlatShader),
 }
 
 #[typetag::serde]
@@ -40,15 +43,17 @@ impl BaseShader for ShaderEnum {
             ShaderEnum::Phong(shader) => shader.get_id(),
             ShaderEnum::FaceShader(shader) => shader.get_id(),
             ShaderEnum::Wireframe(shader) => shader.get_id(),
+            ShaderEnum::Flat(shader) => shader.get_id(),
         }
     }
 
-    fn compute(&self, collision: &RayContext, lights: &LightEnum) -> Result<NColor3, SysError> {
+    fn compute(&self, rc: &RayContext, lights: &LightEnum) -> Result<NColor3, SysError> {
         match self {
-            ShaderEnum::Lambert(shader) => shader.compute(collision, lights),
-            ShaderEnum::Phong(shader) => shader.compute(collision, lights),
-            ShaderEnum::FaceShader(shader) => shader.compute(collision, lights),
-            ShaderEnum::Wireframe(shader) => shader.compute(collision, lights),
+            ShaderEnum::Lambert(shader) => shader.compute(rc, lights),
+            ShaderEnum::Phong(shader) => shader.compute(rc, lights),
+            ShaderEnum::FaceShader(shader) => shader.compute(rc, lights),
+            ShaderEnum::Wireframe(shader) => shader.compute(rc, lights),
+            ShaderEnum::Flat(shader) => shader.compute(rc, lights),
         }
     }
 
@@ -58,6 +63,7 @@ impl BaseShader for ShaderEnum {
             ShaderEnum::Phong(shader) => shader.cast_reflection(),
             ShaderEnum::FaceShader(shader) => shader.cast_reflection(),
             ShaderEnum::Wireframe(shader) => shader.cast_reflection(),
+            ShaderEnum::Flat(shader) => shader.cast_reflection(),
         }
     }
 
@@ -67,6 +73,7 @@ impl BaseShader for ShaderEnum {
             ShaderEnum::Phong(shader) => shader.set_reflection_properties(rc),
             ShaderEnum::FaceShader(shader) => shader.set_reflection_properties(rc),
             ShaderEnum::Wireframe(shader) => shader.set_reflection_properties(rc),
+            ShaderEnum::Flat(shader) => shader.set_reflection_properties(rc),
         }
     }
 
@@ -76,6 +83,7 @@ impl BaseShader for ShaderEnum {
             ShaderEnum::Phong(shader) => shader.get_reflection_final_color(ref_color),
             ShaderEnum::FaceShader(shader) => shader.get_reflection_final_color(ref_color),
             ShaderEnum::Wireframe(shader) => shader.get_reflection_final_color(ref_color),
+            ShaderEnum::Flat(shader) => shader.get_reflection_final_color(ref_color),
         }
     }
 
@@ -106,6 +114,7 @@ impl From<ShaderEnum> for String {
             ShaderEnum::Phong(s) => String::from("phong"),
             ShaderEnum::FaceShader(s) => String::from("flat"),
             ShaderEnum::Wireframe(s) => String::from("wireframe"),
+            ShaderEnum::Flat(s) => String::from("flat"),
         }
     }
 }

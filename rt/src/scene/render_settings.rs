@@ -15,6 +15,7 @@ pub struct RenderSettings {
     pub camera: String,
     pub mt_num_of_threads: usize,
     pub mt_num_of_render_workers_per_thread: usize,
+    pub enable_smoothing: bool,
 }
 
 impl RenderSettings {
@@ -57,6 +58,7 @@ impl Default for RenderSettings {
             camera: "".to_string(),
             mt_num_of_threads: 1,
             mt_num_of_render_workers_per_thread: 1,
+            enable_smoothing: true,
         }
     }
 

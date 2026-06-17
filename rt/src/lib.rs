@@ -5,7 +5,7 @@ pub mod entry;
 pub mod error;
 pub mod index;
 pub mod light;
-pub mod object;
+pub mod geometry;
 pub mod ray;
 pub mod render;
 
@@ -20,3 +20,6 @@ pub mod matrix;
 pub mod quaternion;
 
 pub mod colors;
+
+pub mod bounding_box;
+

@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 use crate::colors::types::NColor3;
+use crate::common::id::Id;
 use crate::common::transform::Transform;
 use crate::light::types::{Attenuation, DIRECTIONAL_LIGHT};
 use crate::light::light::{BaseLight, Shadow};
-use crate::ray::types::RayContext;
+use crate::ray::ray_context::RayContext;
 use crate::vector::types::Vector;
 use crate::vector::vec3f::Vec3f;
 use crate::vector::vec4f::Vec4f;
@@ -20,9 +21,6 @@ pub struct DirectionalLight {
 
 #[typetag::serde]
 impl BaseLight for DirectionalLight {
-    fn get_id(&self) -> String {
-        self.id.clone()
-    }
 
     fn get_type(&self) -> i8 {
         DIRECTIONAL_LIGHT
@@ -51,7 +49,7 @@ impl BaseLight for DirectionalLight {
         None
     }
 
-    fn get_displacement_vector(&self, from: &Vec3f) -> Vec3f {
+    fn get_displacement_vector(&self, to: Option<&Vec3f>, from: &Vec3f) -> Vec3f {
         return Vec3f::new(1.0,1.0,1.0);
     }
 
@@ -62,4 +60,19 @@ impl BaseLight for DirectionalLight {
     fn can_cast_shadow(&self) -> bool {
         true
     }
+
+    fn get_samples_count(&self) -> usize {
+        0
+    }
+
+    fn get_samples(&self) -> Vec<Vec3f> {
+        return vec![];
+    }
 }
+
+impl Id for DirectionalLight {
+    fn get_id(&self) -> String {
+        self.id.clone()
+    }
+}
+

@@ -8,6 +8,8 @@ pub struct VectorArithmetic {
 }
 
 impl VectorArithmetic {
+
+    #[inline(always)]
     pub fn subtract<V, T>(a: &V, b: &V) -> V
     where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
           T: Sub<Output=T> + Copy {
@@ -24,6 +26,7 @@ impl VectorArithmetic {
         r
     }
 
+    #[inline(always)]
     pub fn add<V, T>(a: &V, b: &V) -> V
     where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
           T: Add<Output=T> + Copy {
@@ -40,6 +43,7 @@ impl VectorArithmetic {
         r
     }
 
+    #[inline(always)]
     pub fn multiply_scalar<V, T>(a: &V, b: T) -> V
     where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
           T: Mul<Output=T> + Copy {
@@ -53,6 +57,35 @@ impl VectorArithmetic {
         r
     }
 
+    #[inline(always)]
+    pub fn add_with_scalar<V, T>(a: &V, b: T) -> V
+    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
+          T: Add<Output=T> + Copy {
+        let mut r = V::default();
+        let a_len = a.size();
+        let mut i = 0;
+        while i < a_len {
+            r[i] = a[i] + b;
+            i += 1;
+        }
+        r
+    }
+
+    #[inline(always)]
+    pub fn subtract_scalar<V, T>(a: &V, b: T) -> V
+    where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
+          T: Sub<Output=T> + Copy {
+        let mut r = V::default();
+        let a_len = a.size();
+        let mut i = 0;
+        while i < a_len {
+            r[i] = a[i] - b;
+            i += 1;
+        }
+        r
+    }
+
+    #[inline(always)]
     pub fn divide_by_scalar<V, T>(a: &V, b: T) -> V
     where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>,
           T: Div<Output=T> + Copy {
@@ -66,6 +99,7 @@ impl VectorArithmetic {
         r
     }
 
+    #[inline(always)]
     pub fn comp_wise_mul<V, T>(a: &V, b: &V) -> V
     where V: Index<usize, Output = T> + IndexMut<usize> + Default + Vector<T>, T: Mul<Output = T> + Copy {
         let mut r = V::default();

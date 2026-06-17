@@ -1,0 +1,13 @@
+[package]
+name = "gpu"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+syn = "2.0"
+quote = "1.0"
+proc-macro2 = "1"
+objc2-metal = "0.3.2"
+
+[lib]
+proc-macro = true

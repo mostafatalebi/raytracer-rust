@@ -2,3 +2,6 @@ pub mod scene;
 pub mod render_attributes;
 pub mod metadata;
 pub mod render_settings;
+pub mod obj_importer;
+pub mod deserializers;
+pub mod imports;

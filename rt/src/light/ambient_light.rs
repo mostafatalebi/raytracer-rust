@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use crate::colors::types::NColor3;
+use crate::common::id::Id;
 use crate::common::transform::Transform;
 use crate::light::types::{Attenuation, AMBIENT_LIGHT};
 use crate::light::light::BaseLight;
 use crate::light::types::Attenuation::Flat;
-use crate::ray::types::RayContext;
+use crate::ray::ray_context::RayContext;
 use crate::vector::types::Vector;
 use crate::vector::vec3f::Vec3f;
 
@@ -24,9 +25,6 @@ pub struct AmbientLight {
 
 #[typetag::serde]
 impl BaseLight for AmbientLight {
-    fn get_id(&self) -> String {
-        self.id.clone()
-    }
 
     fn get_type(&self) -> i8 {
         AMBIENT_LIGHT
@@ -54,7 +52,7 @@ impl BaseLight for AmbientLight {
         Some(self._cached)
     }
 
-    fn get_displacement_vector(&self, from: &Vec3f) -> Vec3f {
+    fn get_displacement_vector(&self, to: Option<&Vec3f>, from: &Vec3f) -> Vec3f {
         return Vec3f::new(1.0,1.0,1.0);
     }
 
@@ -64,6 +62,14 @@ impl BaseLight for AmbientLight {
 
     fn can_cast_shadow(&self) -> bool {
         false
+    }
+
+    fn get_samples_count(&self) -> usize {
+        0
+    }
+
+    fn get_samples(&self) -> Vec<Vec3f> {
+        return vec![];
     }
 }
 
@@ -82,4 +88,11 @@ impl AmbientLight {
     }
 
 
+}
+
+
+impl Id for AmbientLight {
+    fn get_id(&self) -> String {
+        self.id.clone()
+    }
 }

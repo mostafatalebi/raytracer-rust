@@ -1,2 +1,2 @@
 pub mod tracer;
-pub mod types;
+pub mod ray_context;

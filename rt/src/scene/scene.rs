@@ -1,26 +1,33 @@
+use crate::scene::deserializers::deserialize_geometries;
 use serde::{Deserialize, Serialize};
+use crate::bounding_box::bvh::BvhNode;
 use crate::camera::camera::{BaseCamera, StandardCamera};
+use crate::common::id::Id;
 use crate::error::error::SysError;
 use crate::error::kinds::ErrorKind;
 use crate::error::kinds::ErrorKind::BadSceneDescription;
 use crate::index::index::IndexOfEntities;
-use crate::light::light::{LightEnum};
-use crate::object::geometry::{Geometry};
-use crate::ray::types::RayContext;
+use crate::light::light::{BaseLight, LightEnum};
+use crate::geometry::geometry::{Geometry};
+use crate::common::primitive::PrimitiveType;
 use crate::scene::metadata::Metadata;
 use crate::scene::render_settings::RenderSettings;
 use crate::shader::shader::{BaseShader, ShaderEnum};
 
-#[derive(Default, Deserialize, Serialize, Clone)]
+#[derive(Default, Deserialize, Clone)]
 pub struct  Scene {
     pub version: String,
     #[serde(skip, default)]
     pub metadata: Metadata,
+
+    #[serde(deserialize_with = "deserialize_geometries")]
     pub geometries: Vec<Geometry>,
     pub lights: Vec<LightEnum>,
     pub cameras: Vec<StandardCamera>,
     pub shaders: Vec<ShaderEnum>,
     pub render_settings: RenderSettings,
+    #[serde(skip, default)]
+    pub bvh_tree: Option<BvhNode>,
     #[serde(skip, default)]
     _indices_db: IndexOfEntities,
 }
@@ -64,7 +71,7 @@ impl Scene {
             if geometry.render_attributes.material_name.is_empty() {
                 return Err(SysError::new_str(ErrorKind::InvalidMaterialType, "Invalid material"));
             } else {
-                if !self._indices_db._shaders_by_name.contains_key(&geometry.render_attributes.material_name) {
+                if !self._indices_db.has_shader(&geometry.render_attributes.material_name) {
                     return Err(SysError::new(ErrorKind::MaterialNotFound, format!("Material not found: {}", geometry.render_attributes.material_name)));
                 }
             }
@@ -90,17 +97,29 @@ impl Scene {
         }
     }
 
+    pub fn generate_bvh_tree(&mut self) {
+        let mut geometries = self.geometries.clone();
+        let bvh_tree = BvhNode::create(&mut geometries);
+        self.bvh_tree = Some(bvh_tree);
+    }
+
     // creates indexed access tables for various objects
     // in a separated O(1) hash map table
     pub fn apply_indexing(&mut self) {
         for (k, obj) in self.geometries.iter().enumerate() {
-            self._indices_db.insert_geometry(obj.id.clone(), k)
+            self._indices_db.insert_geometry(obj.id.clone(), k);
+            self._indices_db.add_global_index(k, PrimitiveType::Geometry);
         }
         for (k, obj) in self.shaders.iter().enumerate() {
-            self._indices_db.insert_shader(obj.get_id(), k)
+            self._indices_db.insert_shader(obj.get_id(), k);
         }
         for (k, obj) in self.cameras.iter().enumerate() {
-            self._indices_db.insert_camera(obj.get_id(), k)
+            self._indices_db.insert_camera(obj.get_id(), k);
+            self._indices_db.add_global_index(k, PrimitiveType::Camera);
+        }
+        for (k, obj) in self.lights.iter().enumerate() {
+            self._indices_db.insert_light(obj.get_id(), k);
+            self._indices_db.add_global_index(k, PrimitiveType::Light);
         }
     }
 
@@ -159,6 +178,13 @@ impl Scene {
         None
     }
 
+
+    pub fn assign_shader_to(&mut self, geo_id: &str, shader_name: &str) {
+        let geom_index = self._indices_db.lookup_geometry(geo_id);
+        if let Some(index) = geom_index {
+            self.geometries[*index].render_attributes.material_name = shader_name.to_string();
+        }
+    }
 }
 
 

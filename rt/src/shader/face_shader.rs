@@ -4,7 +4,7 @@ use crate::colors::types::{Color, NColor3};
 use crate::common::dummy_utils::pick_random_color;
 use crate::error::error::SysError;
 use crate::light::light::LightEnum;
-use crate::ray::types::RayContext;
+use crate::ray::ray_context::RayContext;
 use crate::shader::shader::BaseShader;
 use crate::vector::constants::WHITE;
 #[derive(Default, Deserialize, Serialize, Clone, PartialEq)]
@@ -47,9 +47,9 @@ impl BaseShader for FaceShader {
     }
 
     fn compute(&self, collision: &RayContext, lights: &LightEnum) -> Result<NColor3, SysError> {
-        // let key = format!("object::{oid:?}::face::{fid:?}", oid=collision.collided_object_index, fid=collision.collided_face_index);
+        // let key = format!("geometry::{oid:?}::face::{fid:?}", oid=collision.collided_object_index, fid=collision.collided_face_index);
         // if collision.collided_object_index.is_none()  {
-        //     return Err(SysError::new_str(ErrorKind::GeometryNotFound, "object id not found"))
+        //     return Err(SysError::new_str(ErrorKind::GeometryNotFound, "geometry id not found"))
         // } else if collision.collided_face_index.is_none()  {
         //     return Err(SysError::new_str(ErrorKind::GeometryNotFound, "face id not found"))
         // }

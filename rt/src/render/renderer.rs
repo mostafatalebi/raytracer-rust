@@ -1,10 +1,10 @@
 use std::io::Write;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::SeqCst;
 use std::{io, thread};
 use std::time::Duration;
-use crossterm::cursor::{MoveTo, MoveToColumn};
+use crossterm::cursor::{MoveToColumn};
 use crossterm::ExecutableCommand;
 use crate::buffer::buffer::Buffer;
 use crate::camera::camera::{StandardCamera};
@@ -12,13 +12,14 @@ use crate::common::stats::Stats;
 use crate::error::error::SysError;
 use crate::error::kinds::ErrorKind;
 use crate::ray::tracer::Tracer;
+use crate::render::types::RenderRegion;
 use crate::scene::render_settings::RenderSettings;
 use crate::scene::scene::Scene;
 
-pub struct Renderer {
+pub struct Renderer<'b> {
     scene:      Arc<RwLock<Scene>>,
     camera: String,
-    rt: Tracer,
+    rt: Tracer<'b>,
 
     stats: Stats,
 }
@@ -26,7 +27,7 @@ pub struct Renderer {
 
 
 
-impl Renderer {
+impl<'b> Renderer<'b> {
     pub fn new(scene: Arc<RwLock<Scene>>) -> Self {
         Renderer{scene, camera: "".to_string(), rt: Tracer::default(), stats: Stats::default() }
     }
@@ -42,25 +43,37 @@ impl Renderer {
         }
     }
 
-    pub fn render(&mut self) -> Result<(), SysError> {
+
+
+    /// You can pass an optional RenderRegion which
+    /// is handy for debugging.
+    /// If None, renders the full frame.
+    pub fn render(&mut self, render_region: Option<RenderRegion>) -> Result<(), SysError> {
         let cam = self.get_selected_camera().clone();
         let mut buffer: Buffer;
         let output_filename: String;
         let render_settings: RenderSettings;
-        {
-            let scene = self.scene.read().unwrap();
-            render_settings = scene.render_settings.clone()
-        }
+        let mut scene = self.scene.write().unwrap();
+        scene.generate_bvh_tree();
+        let bvh = scene.bvh_tree.as_ref().unwrap().clone();
+        render_settings = scene.render_settings.clone();
+        let geometries = scene.geometries.clone();
+        std::mem::drop(scene);
+
         buffer = Buffer::new(render_settings.width, render_settings.height);
         match cam {
             Some(c) => {
-                let rt = &mut self.rt;
+
+                let rt = &mut (self.rt.clone());
+                rt.set_geometries(&geometries);
+                rt.set_bvh_tree(&bvh);
                 self.stats.set_num_of_threads(render_settings.mt_num_of_threads);
                 self.stats.record_start_time();
                 rt.set_anti_aliasing(render_settings.anti_aliasing, render_settings.anti_aliasing_method);
                 rt.set_num_of_threads(render_settings.mt_num_of_threads);
                 Self::show_render_progression(rt.total_rays_to_process.clone(), rt.rays_processed_sofar.clone());
-                match rt.trace_from_camera_to_scene(&mut buffer, &c, self.scene.clone()) {
+                let output: Buffer;
+                match rt.trace_from_camera_to_scene(&mut buffer, &c, self.scene.clone(), render_region) {
                     Ok(output) => {
                         self.stats.record_end_time();
                         if let Err(e) = output.save_as_jpeg(&render_settings.get_output_file_name()) {

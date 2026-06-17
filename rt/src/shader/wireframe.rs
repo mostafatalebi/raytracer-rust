@@ -5,8 +5,8 @@ use crate::colors::types::{Color, NColor3};
 use crate::common::types::NormalizedF;
 use crate::error::error::SysError;
 use crate::light::light::{BaseLight, LightEnum};
-use crate::object::geometry::Geometry;
-use crate::ray::types::RayContext;
+use crate::geometry::geometry::Geometry;
+use crate::ray::ray_context::RayContext;
 use crate::scene::scene::Scene;
 use crate::shader::lambert::LambertShader;
 use crate::vector::constants::{BLACK, GRAY};
@@ -109,7 +109,7 @@ impl WireframeShader {
 
     fn compute_lambert(&self, diffuse: &NColor3, collision: &RayContext, light: &LightEnum) -> Result<NColor3, SysError> {
         let mut light_color = NColor3::default();
-        let dir = light.get_displacement_vector(&collision.intersection_coordinate);
+        let dir = light.get_displacement_vector(None, &collision.intersection_coordinate);
         let res = light.compute_light(collision, &dir);
         match res {
             Some(color) => {

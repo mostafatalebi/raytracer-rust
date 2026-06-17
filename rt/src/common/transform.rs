@@ -67,6 +67,16 @@ impl Transform {
         self.local.rotate = (self.local.rotate * q).normalize()
     }
 
+    pub fn get_u_v_dir(&mut self, w: f64, h: f64, u: &Vec3f, v: &Vec3f) -> (Vec3f, Vec3f, Vec3f, Vec3f) {
+        let u_dir = self.local.rotate.rotate_vec3f(u);
+        let v_dir = self.local.rotate.rotate_vec3f(v);
+
+        let u_vec = u_dir * w;
+        let v_vec = v_dir * h;
+
+        (u_dir, v_dir, u_vec, v_vec)
+    }
+
     pub fn scale_world(&mut self, x_unit: f64, y_unit: f64, z_unit: f64) {
         self.world.scale[0] += x_unit;
         self.world.scale[1] += y_unit;

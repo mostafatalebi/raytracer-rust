@@ -1,5 +1,5 @@
 use crate::camera::camera::StandardCamera;
-use crate::object::geometry::Geometry;
+use crate::geometry::geometry::Geometry;
 use crate::scene::render_settings::RenderSettings;
 use crate::scene::scene::Scene;
 use crate::shader::face_shader::FaceShader;
