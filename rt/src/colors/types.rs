@@ -10,6 +10,7 @@ use crate::vector::arithmetic::VectorArithmetic;
 use crate::vector::constants::{BLACK, WHITE};
 use crate::vector::types::Vector;
 use crate::vector::vec3f::Vec3f;
+use crate::vector::vec4f::Vec4f;
 
 #[derive(Default, Clone)]
 pub struct InputChannel {
@@ -63,6 +64,7 @@ impl InputChannel {
 }
 
 pub type NColor3 = Vec3f;
+pub type NColor4 = Vec4f;
 
 
 pub struct Color {
@@ -83,6 +85,10 @@ impl Color {
 
         v.clamp(0.0, 0.9999);
         v
+    }
+
+    pub fn r_to_n_normal(r: u8, g: u8, b: u8) -> NColor3 {
+        NColor3::new(r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0)
     }
 
     pub fn r_to_n<T>(color: &T) -> T

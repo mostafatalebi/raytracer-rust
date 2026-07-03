@@ -21,7 +21,9 @@ use crate::vector::vec3f::Vec3f;
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub enum AreaLightShape {
     #[default]
+    #[serde(rename = "rectangle")]
     Rectangle,
+    #[serde(rename = "disk")]
     Disk
 }
 
@@ -35,11 +37,10 @@ pub struct AreaLight {
     // seen in reflections
     pub shape_color: NColor3,
 
-    pub attenuation_type: Attenuation,
+    pub attenuation: Attenuation,
     #[serde(default)]
     pub shadow_attributes: Shadow,
-    pub bounding_box: AABB,
-    pub centroid: Vec3f,
+
 
     pub shape: AreaLightShape,
     // either radius or width&height are used, based on shape
@@ -48,14 +49,25 @@ pub struct AreaLight {
     pub radius: f64,
 
     pub shadow_samples: usize,
+    pub flip_normals: bool,
 
-    visible_shape: bool,
+    #[serde(rename="visible")]
+    visible: bool,
 
+    #[serde(skip)]
+    pub centroid: Vec3f,
+    #[serde(skip)]
+    pub bounding_box: AABB,
     // these are generated automatically
+    #[serde(skip)]
     _u_dir: Vec3f,
+    #[serde(skip)]
     _v_dir: Vec3f,
+    #[serde(skip)]
     _u_vec: Vec3f,
+    #[serde(skip)]
     _v_vec: Vec3f,
+    #[serde(skip)]
     _normal: Vec3f,
 }
 
@@ -66,7 +78,7 @@ impl BaseLight for AreaLight {
     }
 
     fn get_attenuated_intensity(&self, dist: &Vec3f) -> f64 {
-        match self.attenuation_type {
+        match self.attenuation {
             Attenuation::Flat => self.intensity,
             Attenuation::Linear => {
                 self.intensity / dist.magnitude()
@@ -89,7 +101,7 @@ impl BaseLight for AreaLight {
 
     fn get_displacement_vector(&self, to: Option<&Vec3f>, from: &Vec3f) -> Vec3f {
         if to.is_none() {
-            return (&self.transform.local.translate - from)
+            return (&self.transform.translate - from)
         }
         return to.unwrap() - from
     }
@@ -123,14 +135,15 @@ impl AreaLight {
             intensity: 1.0,
             color: Color::r_to_n(&WHITE),
             shape_color: Color::r_to_n(&WHITE),
-            attenuation_type: Attenuation::Linear,
+            attenuation: Attenuation::Linear,
             shadow_attributes: Shadow::default(),
             width: 1.0,
             height: 1.0,
             shape: Rectangle,
             radius: 0.0,
             shadow_samples: 1,
-            visible_shape: true,
+            visible: true,
+            flip_normals: false,
             _u_dir: Default::default(),
             _v_dir: Default::default(),
             _u_vec: Default::default(),
@@ -175,12 +188,12 @@ impl AreaLight {
         self
     }
     pub fn set_shape_visibility(&mut self, v: bool) -> &mut Self {
-        self.visible_shape = v;
+        self.visible = v;
         self
     }
 
     pub fn is_visible(&self) -> bool {
-        self.visible_shape
+        self.visible
     }
 
     pub fn get_visibility_geometry(&self) -> (Geometry, FlatShader) {
@@ -196,7 +209,7 @@ impl AreaLight {
     }
 
     pub fn set_attenuation(&mut self, attenuation: Attenuation) -> &mut Self {
-        self.attenuation_type = attenuation;
+        self.attenuation = attenuation;
         self
     }
     pub fn set_shadow_samples(&mut self, s: usize) -> &mut Self {
@@ -226,7 +239,7 @@ impl AreaLight {
         let local_v = WORLD_UP;
 
         let result = self.transform.get_u_v_dir(self.width, self.height, &local_u, &local_v);
-        let normal = result.2.cross3(&result.3);
+        let normal = result.2.cross3(&result.3).normalized();
         self._u_dir = result.0;
         self._v_dir = result.1;
         self._u_vec = result.2;
@@ -241,7 +254,7 @@ impl AreaLight {
         for i in 0..self.shadow_samples {
             let u_rand = thread_rng().gen_range(-0.5..0.5);
             let v_rand = thread_rng().gen_range(-0.5..0.5);
-            let p = self.transform.local.translate + (self._u_vec * u_rand) + (self._v_vec * v_rand);
+            let p = self.transform.translate + (self._u_vec * u_rand) + (self._v_vec * v_rand);
             sampled[i] = p
         }
 
@@ -250,6 +263,7 @@ impl AreaLight {
 
     /// flips the direction of the area light
     pub fn flip(&mut self) {
+        self.flip_normals = !self.flip_normals;
         self._normal = self._normal * (-1.0);
     }
 }

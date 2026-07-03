@@ -7,7 +7,6 @@ use crate::shader::face_shader::FaceShader;
 use crate::shader::flat::FlatShader;
 use crate::shader::lambert::LambertShader;
 use crate::shader::phong::PhongShader;
-use crate::shader::shader::ShaderEnum::Wireframe;
 use crate::shader::wireframe::WireframeShader;
 
 #[typetag::serde]

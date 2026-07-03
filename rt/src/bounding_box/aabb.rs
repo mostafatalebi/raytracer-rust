@@ -1,5 +1,6 @@
 use std::ops::Sub;
 use serde::{Deserialize, Serialize};
+use crate::common::volume::Centroid;
 use crate::vector::vec3f::Vec3f;
 
 /// Axis Aligned Bounding Box
@@ -54,12 +55,6 @@ impl AABB {
         2
     }
 
-    pub fn get_centroid(&self) -> Vec3f {
-        Vec3f::new((self.max[0] - self.min[0])*0.5,
-                   (self.max[1] - self.min[1])*0.5,
-                   (self.max[2] - self.min[2])*0.5)
-    }
-
     pub fn expand(&self, b: &Self) -> Self {
         AABB {
                 min: Vec3f::new(self.min[0].min(b.min[0]),
@@ -74,5 +69,18 @@ impl AABB {
 
     pub fn get_min_max(&self) -> (Vec3f, Vec3f) {
         (self.min, self.max)
+    }
+}
+
+pub trait Bounded {
+    fn get_bb(&self) -> AABB;
+}
+
+
+impl Centroid for AABB {
+    fn get_centroid(&self) -> Vec3f {
+        Vec3f::new((self.max[0] - self.min[0])*0.5,
+                   (self.max[1] - self.min[1])*0.5,
+                   (self.max[2] - self.min[2])*0.5)
     }
 }

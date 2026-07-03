@@ -10,4 +10,5 @@ pub mod stats;
 pub mod file;
 pub mod primitive;
 pub mod enums;
+pub mod volume;
 

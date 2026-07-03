@@ -3,12 +3,12 @@ use crate::camera::camera::StandardCamera;
 use crate::common::constants::{EPS, REFLECTION_GLOSSINESS_SCATTER_FACTOR};
 use crate::error::error::SysError;
 use crate::error::kinds::ErrorKind;
-use crate::geometry::geometry::{Geometry, GeometrySubType, GeometryType};
+use crate::geometry::geometry::{Geometry, GeometrySubType};
 use crate::ray::ray_context::{RayContext, RayType};
 use crate::scene::scene::Scene;
 use crate::shader::shader::BaseShader;
 use crate::vector::arithmetic::VectorArithmetic;
-use crate::vector::types::{Vec3i, Vector};
+use crate::vector::types::Vector;
 use crate::vector::vec3f::Vec3f;
 use std::sync::{Arc, Mutex, RwLock};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -18,7 +18,7 @@ use crate::colors::types::{Color, NColor3};
 use crate::light::light::{BaseLight, LightEnum};
 use crate::geometry::geometry::GeometryType::{Polygon, Procedural};
 use crate::geometry::procedural::get_sphere_normal;
-use crate::vector::constants::{BLACK, WHITE};
+use crate::vector::constants::BLACK;
 use rayon::prelude::*;
 use crate::bounding_box::aabb::AABB;
 use crate::bounding_box::bvh::BvhNode;
@@ -26,10 +26,15 @@ use crate::buffer::types::BufferIndex;
 use crate::camera::types::AntiAliasingMethod;
 use crate::common::enums::TraversalReturn::{Continue, DontContinue};
 use crate::common::types::NormalizedF;
+use crate::common::volume::Centroid;
 use crate::geometry::geometry::GeometrySubType::AreaLightShape;
-use crate::light::light::LightEnum::AreaLight;
+use crate::ray::ray_context::RayType::ShadowRay;
+use crate::render::pass::RenderPass;
 use crate::render::types::RenderRegion;
+use crate::scene::environment::Environment;
+use crate::scene::render_settings::AntiAliasingSetting;
 use crate::vector::utils::Utils;
+use crate::vector::vec3i::Vec3i;
 
 #[derive(Clone)]
 pub struct Tracer<'a> {
@@ -38,13 +43,14 @@ pub struct Tracer<'a> {
     max_reflection_traversal: i8,
     max_sample_ray: i8,
     num_of_threads: usize,
-    anti_aliasing: u8,
-    anti_aliasing_method: AntiAliasingMethod,
+    anti_aliasing: AntiAliasingSetting,
 
     geometries: Option<&'a Vec<Geometry>>,
     pub bhv_tree: Option<&'a BvhNode>,
     pub total_rays_to_process: Arc<AtomicU64>,
     pub rays_processed_sofar: Arc<AtomicU64>,
+
+    env_bg: Option<Environment>,
 }
 
 impl<'a> Default for Tracer<'a> {
@@ -55,12 +61,12 @@ impl<'a> Default for Tracer<'a> {
             max_reflection_traversal: 1,
             max_sample_ray: 1,
             num_of_threads: 1,
-            anti_aliasing: 1,
-            anti_aliasing_method: AntiAliasingMethod::Uniform,
+            anti_aliasing: AntiAliasingSetting::default(),
             geometries: None,
             bhv_tree: None,
             total_rays_to_process: Arc::new(AtomicU64::new(0)),
             rays_processed_sofar: Arc::new(AtomicU64::new(0)),
+            env_bg: None,
         }
     }
 }
@@ -73,12 +79,15 @@ impl<'a> Tracer<'a> {
         self.num_of_threads = num_of_threads;
     }
 
-    pub fn set_anti_aliasing(&mut self, aa: u8, method: AntiAliasingMethod) {
-        if aa < 1 {
+    pub fn set_environment(&mut self, env: Environment) {
+        self.env_bg = Some(env.clone())
+    }
+
+    pub fn set_anti_aliasing(&mut self, aa: &AntiAliasingSetting) {
+        if aa.sample < 1 {
             panic!("anti_aliasing must be greater than 0");
         }
-        self.anti_aliasing_method = method;
-        self.anti_aliasing = aa;
+        self.anti_aliasing = aa.clone()
     }
 
 
@@ -102,7 +111,7 @@ impl<'a> Tracer<'a> {
             pixel = buffer.get_next_pixel_indices();
             i += 1
         }
-        self.total_rays_to_process.store(buffer.get_size() as u64 * self.anti_aliasing as u64, SeqCst);
+        self.total_rays_to_process.store(buffer.get_size() as u64 * self.anti_aliasing.sample as u64, SeqCst);
         workload
     }
 
@@ -132,19 +141,19 @@ impl<'a> Tracer<'a> {
                         return;
                     }
                 }
-                let pixel_coordinate = cam.get_anti_aliased_pixel_coordinates(tile[1] as i64, tile[2] as i64, self.anti_aliasing, &self.anti_aliasing_method);
+                let pixel_coordinate = cam.get_anti_aliased_pixel_coordinates(tile[1] as i64, tile[2] as i64, self.anti_aliasing.sample, &self.anti_aliasing.method);
                 let mut rc = RayContext::new_for_camera_ray(
-                    &cam.transform.local.translate,
+                    &cam.transform.translate,
                     Some(tile.clone()),
                 );
-                rc.camera_position = cam.transform.local.translate;
+                rc.camera_position = cam.transform.translate;
                 let mut pixel_color = NColor3::default();
                 let mut hit_count: usize = 0;
                 for pixel_c in pixel_coordinate {
                     let ray_dir = (&pixel_c - &rc.origin_coordinate).normalized();
                     rc.reset_for_next_iteration(ray_dir, Some(pixel_c));
-                    if let Some(color) = self.process_ray_for_objects(&mut rc, s) {
-                        pixel_color += color;
+                    if let Some(color_pass) = self.process_ray_for_objects(&mut rc, s) {
+                        pixel_color += color_pass.composite();
                         hit_count += 1;
                     }
                     self.rays_processed_sofar.fetch_add(1, Ordering::SeqCst);
@@ -174,7 +183,7 @@ impl<'a> Tracer<'a> {
         &self,
         mut rc: &mut RayContext,
         s: &Arc<RwLock<Scene>>,
-    ) -> Option<NColor3> {
+    ) -> Option<RenderPass> {
         rc.calc_inv_ray_dir();
         self.bhv_tree.unwrap().inorder_traversal(rc, &mut |_rc, is_leaf, bounding_volume, objects_list| {
             if self.test_against_bb(bounding_volume, _rc) == false {
@@ -202,6 +211,8 @@ impl<'a> Tracer<'a> {
 
         if rc.has_ever_intersected() {
             return self.on_ray_target_intersection(&mut rc, s);
+        } else {
+            return Some(self.get_bg_color(&rc.ray_dir.normalized()));
         }
         None
     }
@@ -237,7 +248,7 @@ impl<'a> Tracer<'a> {
         &self,
         mut rc: &mut RayContext,
         s: &Arc<RwLock<Scene>>,
-    ) -> Option<NColor3> {
+    ) -> Option<RenderPass> {
         if rc.intersected_object_index.is_none() {
             panic!("geometry id is null")
         }
@@ -251,26 +262,30 @@ impl<'a> Tracer<'a> {
 
         match shader {
             Some(ref mut ss) => {
-                let mut main_point_color = NColor3::default();
+                let mut color_pass = RenderPass::default();
                 let shader_ptr = ss.1;
                 let mut rc_reflection = rc.fork_for_reflection(&rc.intersection_coordinate,
                                                                rc.intersected_face_normal, rc.intersected_vertex_normal);
-                for light in &scene.lights {
-                    if rc_reflection.can_continue_for_reflection() && shader_ptr.cast_reflection() {
-                        shader_ptr.set_reflection_properties(&mut rc_reflection);
-                        rc_reflection.increment_reflection_level();
-                        match self.trace_rays_for_reflection(&mut rc_reflection, s) {
-                            Err(err) => {
-                                panic!("an error occurred when calculating the reflection: {:?}", err)
-                            },
-                            Ok(res) => {
-                                if let Some(ref_color) = res {
-                                    main_point_color += shader_ptr.get_reflection_final_color(&ref_color);
-                                }
+
+                if !scene.render_settings.disable_reflections && rc_reflection.can_continue_for_reflection() && shader_ptr.cast_reflection() {
+                    shader_ptr.set_reflection_properties(&mut rc_reflection);
+                    rc_reflection.increment_reflection_level();
+                    match self.trace_rays_for_reflection(&mut rc_reflection, s) {
+                        Err(err) => {
+                            panic!("an error occurred when calculating the reflection: {:?}", err)
+                        },
+                        Ok(res) => {
+                            if let Some(ref_color) = res {
+                                color_pass.set_reflection(shader_ptr.get_reflection_final_color(&ref_color));
                             }
                         }
                     }
-                    if rc.obj_receive_shadow && light.can_cast_shadow() {
+                }
+
+                for light in &scene.lights {
+                    let mut shadow_multiplier = 1.0;
+                    // shadow pass
+                    if !scene.render_settings.disable_shadows && light.can_cast_shadow() {
                         let normal = rc.get_proper_normal();
                         let acneless_shadow_origin = rc.intersection_coordinate.add_with(&normal.multiply_scalar(0.001));
                         let mut rc_shadow = RayContext::new_for_secondary_ray(RayType::ShadowRay,
@@ -282,28 +297,24 @@ impl<'a> Tracer<'a> {
                                 panic!("an error occurred when calculating the shadow: {:?}", err)
                             },
                             Ok(multiplier) => {
-                                match shader_ptr.compute(&rc, &light) {
-                                    Ok(color) => {
-                                        main_point_color += color * multiplier;
-                                    },
-                                    Err(err) => {
-                                        panic!("an error occurred when calculating the shader's shadow: {:?}", err)
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        match shader_ptr.compute(&rc, &light) {
-                            Ok(color) => {
-                                main_point_color += color
-                            },
-                            Err(err) => {
-                                panic!("an error occurred when calculating the shader's shadow: {:?}", err)
+                                shadow_multiplier = multiplier;
+                                color_pass.add_shadow(multiplier);
                             }
                         }
                     }
+
+
+                    // diffuse pass
+                    match shader_ptr.compute(&rc, &light) {
+                        Ok(color) => {
+                            color_pass.add_diffuse(&color, shadow_multiplier);
+                        },
+                        Err(err) => {
+                            panic!("an error occurred when calculating the shader's color: {:?}", err)
+                        }
+                    }
                 }
-                Some(main_point_color)
+                Some(color_pass)
             }
             None => return None,
         }
@@ -313,12 +324,13 @@ impl<'a> Tracer<'a> {
     pub fn trace_rays_for_shadows(&self, light: &LightEnum, mut rc: &mut RayContext, sc: &Arc<RwLock<Scene>>) -> Result<NormalizedF, SysError> {
         match light {
             LightEnum::AreaLight(a) => {
-                return self.trace_rays_for_area_shadows(light, &mut rc, sc);
+                if a.shadow_samples > 1 {
+                    return self.trace_rays_for_area_shadows(light, &mut rc, sc);
+                }
             },
-            _ => {
-                return self.trace_rays_for_shadows_for_normal_light(light, &mut rc, sc);
-            }
+            _ => {}
         }
+        return self.trace_rays_for_shadows_for_normal_light(light, &mut rc, sc);
     }
 
     pub fn trace_rays_for_shadows_for_normal_light(&self, light: &LightEnum, mut rc: &mut RayContext, sc: &Arc<RwLock<Scene>>) -> Result<NormalizedF, SysError> {
@@ -379,7 +391,7 @@ impl<'a> Tracer<'a> {
         }
 
         rc.area_light_samples_count = light.get_samples_count();
-        rc.area_light_sampled_shadow_multiplier = 0.0;
+        let mut multiplier = 0.0;
         for (i, point) in rc.area_light_sampled_points.clone().unwrap().iter().enumerate() {
             let light_to_point_vector = light.get_displacement_vector(Some(&point), &rc.intersection_coordinate);
             rc.ray_dir = light_to_point_vector.normalized();
@@ -407,7 +419,7 @@ impl<'a> Tracer<'a> {
                                 }
                             }
                             Err(err) => {
-                                return DontContinue
+                                return panic!("{}", err.to_string());
                             }
                         }
                     }
@@ -417,12 +429,12 @@ impl<'a> Tracer<'a> {
             });
 
             if rc.is_in_shadow {
-                rc.area_light_sampled_shadow_multiplier += 0.0;
+                multiplier += 0.0;
             } else {
-                rc.area_light_sampled_shadow_multiplier += 1.0;
+                multiplier += 1.0;
             }
         }
-        let multiplier = rc.area_light_sampled_shadow_multiplier / (rc.area_light_samples_count as f64);
+        let multiplier = multiplier / (rc.area_light_samples_count as f64);
         Ok(multiplier)
     }
 
@@ -443,14 +455,14 @@ impl<'a> Tracer<'a> {
                 }
                 let rnd_ray_dir = (&(direct_ray_dir + random_ray * rc.reflection_glossiness * REFLECTION_GLOSSINESS_SCATTER_FACTOR)).normalized();
                 rc.ray_dir = rnd_ray_dir;
-                if let Some(color) = self.process_ray_for_objects(rc, sc) {
-                    final_color += color;
+                if let Some(color_pass) = self.process_ray_for_objects(rc, sc) {
+                    final_color += color_pass.composite();
                 }
             }
             return Ok(Some(final_color.divide_by_scalar(num_of_emitted_rays as f64)));
         }
         if let Some(color) = self.process_ray_for_objects(rc, sc) {
-            return Ok(Some(color));
+            return Ok(Some(color.composite()));
         }
         Ok(None)
     }
@@ -492,14 +504,38 @@ impl<'a> Tracer<'a> {
         rc.intersected_object_centroid = Some(obj.get_centroid());
         rc.do_smooth = obj.render_attributes.smooth.enable;
         if obj.geometry_type == Polygon {
-            _ = self.try_over_faces(
-                &obj.data.faces,
-                &obj.data.vertices,
-                &obj.data.face_normals,
-                &obj.data.vertex_normals,
-                &obj.data.face_to_v_normals,
-                rc,
-            )
+            obj.bvh_tree.as_ref().unwrap().inorder_traversal(rc, &mut |_rc, is_leaf, bounding_volume, triangles_list| {
+                if self.test_against_bb(bounding_volume, _rc) == false {
+                    // return early
+                    return Continue;
+                }
+                if is_leaf {
+                    for triangle_index in triangles_list {
+                        let f_index = *triangle_index;
+                        let face_coordinates = obj.data._faces_computed[f_index];
+                        let mut vertex_normals: [Vec3f; 3] = [Vec3f::default(); 3];
+                        if let Some(c) = self.use_moller_trumbore(_rc, &face_coordinates)
+                        {
+                            if _rc.is_closest_so_far(c.0) {
+                                vertex_normals[0] = obj.data.vertex_normals[obj.data.face_to_v_normals[f_index][0] as usize];
+                                vertex_normals[1] = obj.data.vertex_normals[obj.data.face_to_v_normals[f_index][1] as usize];
+                                vertex_normals[2] = obj.data.vertex_normals[obj.data.face_to_v_normals[f_index][2] as usize];
+                                let v_normal = Utils::calc_vertices_normal(_rc.intersection_coordinate_barycentric_u,
+                                                                           _rc.intersection_coordinate_barycentric_v, &vertex_normals);
+                                _rc.update_intersection(_rc.next_object_index, Some(f_index), Some(obj.data.face_normals[f_index]),
+                                                       Some(v_normal),
+                                                       c.0, c.1, _rc.do_smooth);
+                            }
+
+                            if _rc.ray_type == ShadowRay {
+                                return DontContinue
+                            }
+                        }
+                    }
+                }
+
+                Continue
+            });
         } else if obj.geometry_type == Procedural {
             _ = self.try_over_procedural(obj, rc);
         } else {
@@ -509,46 +545,6 @@ impl<'a> Tracer<'a> {
     }
 
 
-    pub fn try_over_faces(
-        &self,
-        faces: &Vec<Vec3i>,
-        vertices: &Vec<Vec3f>,
-        face_normals: &Vec<Vec3f>,
-        vertices_normals: &Vec<Vec3f>,
-        face_to_v_normals: &Vec<Vec3i>,
-        rc: &mut RayContext,
-    ) -> Result<(), SysError> {
-        let mut vertex_normals: Vec<Vec3f> = vec![Vec3f::default(); 3];
-        for (f_index, f_vertices) in faces.iter().enumerate() {
-            let mut face_coordinates: Vec<&Vec3f> = Vec::new();
-            for index in 0..3 {
-                if let Some(vx) = vertices.get(f_vertices[index] as usize) {
-                    face_coordinates.push(vx)
-                } else {
-                    return Err(SysError::new(
-                        ErrorKind::BadFaceStructure,
-                        "[face's] vertex is not found".to_string(),
-                    ));
-                }
-            }
-            if let Some(c) =
-                self.shoot_ray_to_planar_triangle(rc, &face_coordinates)
-            {
-                if  rc.is_closest_so_far(c.0) {
-                    vertex_normals[0] = vertices_normals[face_to_v_normals[f_index][0] as usize];
-                    vertex_normals[1] = vertices_normals[face_to_v_normals[f_index][1] as usize];
-                    vertex_normals[2] = vertices_normals[face_to_v_normals[f_index][2] as usize];
-                    let v_normal = Utils::calc_vertices_normal(rc.intersection_coordinate_barycentric_u,
-                                                               rc.intersection_coordinate_barycentric_v, &vertex_normals);
-                    rc.update_intersection(rc.next_object_index, Some(f_index), Some(face_normals[f_index]),
-                                           Some(v_normal),
-                                           c.0, c.1, rc.do_smooth);
-                }
-            }
-        }
-        Ok(())
-    }
-
     pub fn try_over_procedural(&self, geo: &Geometry, rc: &mut RayContext) -> Result<(), SysError> {
         match geo.geometry_subtype.clone() {
             GeometrySubType::Sphere => {
@@ -556,8 +552,8 @@ impl<'a> Tracer<'a> {
                 match r {
                     Some(rr) => {
 
-                        if let Some(r_intr) = self.use_sphere_detection(&rc.origin_coordinate, &rc.ray_dir, &geo.transform.local.translate, rr.v_f64) {
-                            let normal = get_sphere_normal(&r_intr.1, &geo.transform.local.translate);
+                        if let Some(r_intr) = self.use_sphere_detection(&rc.origin_coordinate, &rc.ray_dir, &geo.transform.translate, rr.v_f64) {
+                            let normal = get_sphere_normal(&r_intr.1, &geo.transform.translate);
                             _ = rc.update_intersection(rc.next_object_index, None, Some(normal), Some(normal), r_intr.0, r_intr.1, false);
                         }
 
@@ -573,18 +569,6 @@ impl<'a> Tracer<'a> {
             }
         }
 
-    }
-
-
-    pub fn shoot_ray_to_planar_triangle(
-        &self,
-        rc: &mut RayContext,
-        face: &Vec<&Vec3f>,
-    ) -> Option<(f64, Vec3f)> {
-        if let Some(intersection) = self.use_moller_trumbore(rc, face) {
-            return Some(intersection);
-        }
-        None
     }
 
 
@@ -616,11 +600,11 @@ impl<'a> Tracer<'a> {
     pub fn use_moller_trumbore(
         &self,
         rc: &mut RayContext,
-        triangle: &Vec<&Vec3f>,
+        triangle: &[Vec3f; 3],
     ) -> Option<(f64, Vec3f)> {
         let e1 = triangle[1] - triangle[0];
         let e2 = triangle[2] - triangle[0];
-        let s = &rc.origin_coordinate - triangle[0];
+        let s = rc.origin_coordinate - triangle[0];
 
         let p = rc.ray_dir.cross3(&e2);
         let a = VectorArithmetic::dot(&e1, &p);
@@ -672,22 +656,30 @@ impl<'a> Tracer<'a> {
         }
     }
 
+
+    fn get_bg_color(&self, ray_dir_n: &Vec3f) -> RenderPass {
+        match self.env_bg.as_ref() {
+            None => {
+                RenderPass::new_from_color(Color::r_to_n(&BLACK))
+            }
+            Some(env) => {
+                RenderPass::new_from_color(env.get_dome_color(ray_dir_n))
+            }
+        }
+    }
+
 }
 
 #[cfg(test)]
 
 mod test {
-    use crate::camera::camera::StandardCamera;
-    use crate::ray::tracer::Tracer;
     use crate::render::renderer::Renderer;
     use crate::scene::scene::Scene;
-    use crate::vector::types::{Vec2i, Vector};
-    use crate::vector::vec3f::Vec3f;
     use std::sync::{Arc, RwLock};
 
     #[test]
     fn test_ray_emitter() {
-        let s = Scene::load_from_file("../resources/scene_examples/scene_basic.json");
+        let s = Scene::load_from_file("../resources/scene_examples/scene_tea_and_cups.json");
         assert_eq!(false, s.is_err(), "err={:?}", s.err().unwrap());
 
         if s.is_ok() {

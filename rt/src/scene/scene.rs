@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use eframe::wgpu::naga::compact::KeepUnused::No;
 use crate::scene::deserializers::deserialize_geometries;
 use serde::{Deserialize, Serialize};
 use crate::bounding_box::bvh::BvhNode;
@@ -25,6 +27,8 @@ pub struct  Scene {
     pub lights: Vec<LightEnum>,
     pub cameras: Vec<StandardCamera>,
     pub shaders: Vec<ShaderEnum>,
+    #[serde(rename="shaders_assignment")]
+    pub imported_shaders_to_object: HashMap<String, Vec<String>>,
     pub render_settings: RenderSettings,
     #[serde(skip, default)]
     pub bvh_tree: Option<BvhNode>,
@@ -98,8 +102,11 @@ impl Scene {
     }
 
     pub fn generate_bvh_tree(&mut self) {
+        for (k, v) in self.geometries.iter_mut().enumerate() {
+            v.generate_bvh_tree();
+        }
         let mut geometries = self.geometries.clone();
-        let bvh_tree = BvhNode::create(&mut geometries);
+        let bvh_tree = BvhNode::create(&mut geometries, 2);
         self.bvh_tree = Some(bvh_tree);
     }
 
@@ -121,6 +128,22 @@ impl Scene {
             self._indices_db.insert_light(obj.get_id(), k);
             self._indices_db.add_global_index(k, PrimitiveType::Light);
         }
+        let shader_assignment_map = self.imported_shaders_to_object.clone();
+        if !shader_assignment_map.is_empty() {
+            for (shader_id, v) in shader_assignment_map.iter() {
+                if self.lookup_shader(shader_id).is_none() {
+                    panic!("Unknown shader: {}", shader_id);
+                }
+                if !v.is_empty() {
+                    for (kk, object_id) in v.iter().enumerate() {
+                        if self.lookup_geometry(object_id).is_none() {
+                            panic!("Unknown geometry: {}", object_id);
+                        }
+                    self.assign_shader_to(shader_id, object_id)
+                    }
+                }
+            }
+        }
     }
 
     fn post_process(&mut self) {
@@ -132,6 +155,13 @@ impl Scene {
         }
     }
 
+    pub fn lookup_geometry(&self, id: &str) -> Option<&Geometry> {
+        let index = self._indices_db.lookup_geometry(id);
+        if !index.is_some() {
+            return None;
+        }
+        Some(&self.geometries[*index.unwrap()])
+    }
     pub fn lookup_shader(&self, id: &str) -> Option<(usize, &ShaderEnum)> {
         if !self.shaders.is_empty() {
             if let Some(index) = self._indices_db.lookup_shader(id) {
@@ -195,7 +225,7 @@ mod tests {
 
     #[test]
     fn load_scene_test() {
-        let scene_json = fs::read_to_string("../resources/scene_examples/scene_basic.json");
+        let scene_json = fs::read_to_string("../resources/scene_examples/scene_tea_and_cups.json");
 
         assert_eq!(false, scene_json.is_err(), "err={:?}", scene_json.err().unwrap());
         if !scene_json.is_err() {

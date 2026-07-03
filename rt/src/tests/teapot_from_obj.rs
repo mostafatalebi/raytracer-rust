@@ -6,17 +6,17 @@ use crate::light::types::Attenuation;
 use crate::scene::render_settings::RenderSettings;
 use crate::scene::scene::Scene;
 use crate::shader::lambert::LambertShader;
-use crate::colors::types::{Color, NColor3};
-use crate::vector::constants::{CYAN, FAINT_BLUE_WHITE, FAINT_GREEN, MUTED_PLUM, RED, SKY_BLUE, SOFT_PINK, WHITE, WORLD_UP};
+use crate::colors::types::{Color};
+use crate::vector::constants::{FAINT_BLUE_WHITE, SOFT_PINK, WHITE, WORLD_UP};
 use crate::vector::types::{Vec2i, SENSOR_SQUARE_66};
 use crate::vector::vec3f::Vec3f;
 use std::thread::available_parallelism;
-use crate::camera::types::AntiAliasingMethod::{MonteCarlo, Uniform};
-use crate::geometry::helpers::create_cube;
+use crate::camera::types::AntiAliasingMethod::{MonteCarlo};
 use crate::light::area_light::AreaLight;
+use crate::scene::environment::Environment;
 use crate::scene::obj_importer::ObjImporter;
 use crate::shader::phong::PhongShader;
-use crate::shader::shader::{BaseShader, ShaderEnum};
+use crate::shader::shader::{BaseShader};
 
 pub fn get_scene_teapot_obj() -> Scene {
     let mut scene = Scene::default();
@@ -53,7 +53,7 @@ pub fn get_scene_teapot_obj() -> Scene {
 
     let kettle = PhongShader::new()
         .auto_id()
-        .set_diffuse_color(Color::r_to_n(&Vec3f::new(0.2, 0.2, 0.2)))
+        .set_diffuse_color(Color::r_to_n(&Vec3f::new(40.0, 40.0, 40.0)))
         .set_specularity(0.5, Color::r_to_n(&WHITE), 1.0)
         .set_reflection(0.6, 0.6)
         .add_to_scene(&mut scene).get();
@@ -104,23 +104,16 @@ pub fn get_scene_teapot_obj() -> Scene {
     scene.assign_shader_to(&"mug_001", &mug_light_green.get_id());
     scene.assign_shader_to(&"mug_002", &mug_light_blue.get_id());
 
-    // scene.shaders.push(kettle.get_shader());
-    // scene.shaders.push(table_top.get_shader());
-    // scene.shaders.push(cup_white.get_shader());
-    // scene.shaders.push(cup_light_orange.get_shader());
-    // scene.shaders.push(mug_light_green.get_shader());
-    // scene.shaders.push(mug_light_blue.get_shader());
-
-    let mut area_light = AreaLight::new().set_id("area_light_1".to_string()).set_dimensions(15.0, 15.0)
-        .set_intensity(30.0).set_shadow_samples(2).set_attenuation(Attenuation::Cube).get();
-    area_light.transform.move_local(5.0, 10.0,10.0);
-    area_light.transform.rotate_local(-30.0, 0.0,10.0);
+    let mut area_light = AreaLight::new().set_id("area_light_1".to_string()).set_dimensions(30.0, 30.0)
+        .set_intensity(30.0).set_shadow_samples(12).set_attenuation(Attenuation::Linear).get();
+    area_light.transform.move_params(5.0, 10.0, 10.0);
+    area_light.transform.rotate_by(-30.0, 0.0, 10.0);
     area_light.apply_transformation();
     area_light.flip();
-    let mut point_light = PointLight::new("point_light_1", 0.0, Color::r_to_n(&FAINT_BLUE_WHITE), Attenuation::Linear);
-    point_light.transform.local.translate = Vec3f::new(0.5, 12.5, 12.5);
+    let mut point_light = PointLight::new("point_light_1", 2.5, Color::r_to_n(&FAINT_BLUE_WHITE), Attenuation::Flat);
+    point_light.transform.translate = Vec3f::new(5.0, 12.5, 12.5);
 
-    let ambient_light = AmbientLight::new("ambient_light_1", 0.2, Color::r_to_n(&WHITE));
+    let ambient_light = AmbientLight::new("ambient_light_1", 0.0, Color::r_to_n(&WHITE));
 
     // scene.lights.push(LightEnum::PointLight(point_light));
     scene.lights.push(LightEnum::AmbientLight(ambient_light));
@@ -136,12 +129,10 @@ pub fn get_scene_teapot_obj() -> Scene {
         SENSOR_SQUARE_66,
         Some(Vec3f::new(0.0,0.0,0.0)),
         WORLD_UP,
-        50.0,
+        30.0,
         Some(Vec3f::new(-3.0, 1.5, 3.5)),
     );
-    // cam.lock_to(Vec3f::new(0.0, 0.0, 0.0));
-    // cam.transform.move_local(0.0, 0.2, 0.0);
-    cam.transform.rotate_local(-5.0, -10.0, -4.0);
+    cam.transform.rotate_by(-5.0, -10.0, -4.0);
 
     cam.configure();
 
@@ -151,13 +142,20 @@ pub fn get_scene_teapot_obj() -> Scene {
     scene.render_settings.file_name = "teapot_obj{#}".to_string();
     scene.render_settings.width = width as usize;
     scene.render_settings.height = height as usize;
+    scene.render_settings.multi_threading.enabled = true;
     if let Ok(num_of_threads) = available_parallelism() {
-        scene.render_settings.mt_num_of_threads = usize::max(1, num_of_threads.get() - 1);
-        // scene.render_settings.mt_num_of_threads = 1;
+        scene.render_settings.multi_threading.count = usize::max(1, num_of_threads.get() - 1);
     }
-    scene.render_settings.anti_aliasing = 1;
-    scene.render_settings.anti_aliasing_method = MonteCarlo;
-    scene.apply_indexing();
+    scene.render_settings.anti_aliasing.sample = 1;
+    scene.render_settings.anti_aliasing.method = MonteCarlo;
 
+    let mut env = Environment::new_with_image("../resources/images/pexels-curtis-adams-1694007-10164897.jpg".to_string());
+    env.flip_v();
+    env.set_repeat(4, 2);
+    env.rotate_y(-40.0);
+    scene.render_settings.environment = Some(env);
+    scene.render_settings.disable_reflections = true;
+
+    scene.apply_indexing();
     scene
 }

@@ -30,7 +30,7 @@ pub fn get_scene_room_and_sphere() -> Scene {
     let room_thickness: f64 = 5.0;
 
     let mut room_front_wall = create_cube(room_width, room_height, room_thickness);
-    room_front_wall.transform.move_local(0.0,0.0,-50.0);
+    room_front_wall.transform.move_params(0.0, 0.0, -50.0);
     LambertShader::new()
         .auto_id()
         .set_diffuse(Color::r_to_n(&FAINT_GREEN))
@@ -39,7 +39,7 @@ pub fn get_scene_room_and_sphere() -> Scene {
 
 
     let mut room_left_wall = create_cube(room_thickness, room_height, room_width);
-    room_left_wall.transform.move_local(-room_width,0.0,0.0);
+    room_left_wall.transform.move_params(-room_width, 0.0, 0.0);
     LambertShader::new()
         .auto_id()
         .set_diffuse(Color::r_to_n(&FAINT_BLUE_WHITE))
@@ -47,7 +47,7 @@ pub fn get_scene_room_and_sphere() -> Scene {
         .add_to_scene(&mut scene);
 
     let mut room_right_wall = create_cube(room_thickness, room_height, room_width);
-    room_right_wall.transform.move_local(room_width,0.0,0.0);
+    room_right_wall.transform.move_params(room_width, 0.0, 0.0);
     LambertShader::new()
         .auto_id()
         .set_diffuse(Color::r_to_n(&SOFT_PINK))
@@ -55,7 +55,7 @@ pub fn get_scene_room_and_sphere() -> Scene {
         .add_to_scene(&mut scene);
 
     let mut room_ceiling = create_cube(room_width, room_thickness, room_width);
-    room_ceiling.transform.move_local(0.0, room_height,0.0);
+    room_ceiling.transform.move_params(0.0, room_height, 0.0);
     LambertShader::new()
         .auto_id()
         .set_diffuse(Color::r_to_n(&SOFT_PINK))
@@ -63,7 +63,7 @@ pub fn get_scene_room_and_sphere() -> Scene {
         .add_to_scene(&mut scene);
 
     let mut room_floor = create_cube(room_width, room_thickness, room_width);
-    room_floor.transform.move_local(0.0, 0.0,0.0);
+    room_floor.transform.move_params(0.0, 0.0, 0.0);
 
     PhongShader::new()
         .auto_id()
@@ -157,7 +157,7 @@ pub fn get_scene_room_and_sphere() -> Scene {
     }
 
     let mut point_light = PointLight::new("point_light_1", 0.6, Color::r_to_n(&FAINT_BLUE_WHITE), Attenuation::Flat);
-    point_light.transform.move_local(0.0, 25.0, 20.0);
+    point_light.transform.move_params(0.0, 25.0, 20.0);
 
     let ambient_light = AmbientLight::new("ambient_light_1", 0.35, Color::r_to_n(&WHITE));
 
@@ -174,33 +174,23 @@ pub fn get_scene_room_and_sphere() -> Scene {
         Some(Vec3f::new(0.0, 40.0, 80.0)),
     );
 
-    cam.transform.move_local(0.0, 0.0, -30.0);
-    cam.transform.rotate_local(-10.0, 0.0, 0.0);
+    cam.transform.move_params(0.0, 0.0, -30.0);
+    cam.transform.rotate_by(-10.0, 0.0, 0.0);
 
     cam.configure();
-    // println!("forward: {:?}", cam.get_forward());
-    // println!("forward: {:?}", cam.get_forward());
-    // println!("right:   {:?}", cam.get_right());
-    // println!("up:      {:?}", cam.get_up());
-    // println!("fov:      {:?}", cam.get_fov());
-    // println!("aspect_ratio:      {:?}", cam.get_aspect_ratio());
-    // let center_pixel = cam.clone().get_pixel_coordinates(100, 100);
-    // println!("center pixel_coord: {:?}", center_pixel);
-    // let pixel_coord = cam.get_pixel_coordinates(100, 100);
-    // let ray_dir = (&pixel_coord - &cam.transform.local.translate).normalized();
-    // println!("ray_dir center: {:?}", ray_dir);
     scene.cameras.push(cam);
 
     scene.render_settings = RenderSettings::default();
     scene.render_settings.file_name = "scene_room_001{#}".to_string();
     scene.render_settings.width = width as usize;
     scene.render_settings.height = height as usize;
+    scene.render_settings.multi_threading.enabled = true;
     if let Ok(num_of_threads) = available_parallelism() {
-        scene.render_settings.mt_num_of_threads = usize::max(1, num_of_threads.get() - 1);
+        scene.render_settings.multi_threading.count = usize::max(1, num_of_threads.get() - 1);
         // scene.render_settings.mt_num_of_threads = 8;
     }
-    scene.render_settings.anti_aliasing = 8;
-    scene.render_settings.anti_aliasing_method = MonteCarlo;
+    scene.render_settings.anti_aliasing.sample = 8;
+    scene.render_settings.anti_aliasing.method = MonteCarlo;
     scene.apply_indexing();
 
     scene

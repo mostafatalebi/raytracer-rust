@@ -1,3 +1,4 @@
+use crate::light::deserializers::deserialize_area_light;
 use serde::{Deserialize, Serialize};
 use crate::colors::types::NColor3;
 use crate::common::id::Id;
@@ -39,7 +40,7 @@ pub enum LightEnum {
     #[serde(rename = "ambient")]
     AmbientLight(AmbientLight),
 
-    #[serde(rename = "area")]
+    #[serde(rename = "area", deserialize_with = "deserialize_area_light")]
     AreaLight(AreaLight),
 }
 

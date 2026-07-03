@@ -5,8 +5,9 @@ use crate::scene::scene::Scene;
 use crate::shader::face_shader::FaceShader;
 use crate::shader::shader::ShaderEnum;
 use crate::vector::constants::WORLD_UP;
-use crate::vector::types::{Vec2i, Vec3i, Vector, SENSOR_SIZE_35, SENSOR_SQUARE_66};
+use crate::vector::types::{Vec2i, Vector, SENSOR_SIZE_35, SENSOR_SQUARE_66};
 use crate::vector::vec3f::Vec3f;
+use crate::vector::vec3i::Vec3i;
 
 pub fn get_simple_plane_scene() -> Scene {
     let mut s = Scene::default();
@@ -43,11 +44,11 @@ pub fn get_simple_plane_scene() -> Scene {
 
     let face_shader = FaceShader::new("face_shader_001", 1.0);
     s.shaders.push(ShaderEnum::FaceShader(face_shader));
-    plane.transform.rotate_local(0.0, 0.0, 0.0);
+    plane.transform.rotate_by(0.0, 0.0, 0.0);
     // plane.apply_transformations();
-    cam.lock_to(plane.clone().transform.local.translate);
-    cam.transform.move_world(0.0,0.0,-5.0);
-    cam.transform.set_world_rotate(Vec3f::new(0.0,0.0, 0.0));
+    cam.lock_to(plane.clone().transform.translate);
+    cam.transform.move_params(0.0,0.0,-5.0);
+    cam.transform.rotate(Vec3f::new(0.0, 0.0, 0.0));
     cam.configure();
 
     s.geometries.push(plane);
@@ -123,8 +124,8 @@ pub fn get_simple_cube_scene() -> Scene {
 
     let face_shader = FaceShader::new("face_shader_001", 1.0);
     s.shaders.push(ShaderEnum::FaceShader(face_shader));
-    cam.lock_to(cube.clone().transform.local.translate);
-    cam.transform.move_local(0.0,10.0,0.0);
+    cam.lock_to(cube.clone().transform.translate);
+    cam.transform.move_params(0.0, 10.0, 0.0);
     // cam.pan(0.0, -5.0);
     cam.configure();
     s.geometries.push(cube.clone());
@@ -137,7 +138,7 @@ pub fn get_simple_cube_scene() -> Scene {
     let center_pixel = cam.clone().get_pixel_coordinates(100, 100);
     println!("center pixel_coord: {:?}", center_pixel);
     let pixel_coord = cam.get_pixel_coordinates(100, 100);
-    let ray_dir = (&pixel_coord - &cam.transform.local.translate).normalized();
+    let ray_dir = (&pixel_coord - &cam.transform.translate).normalized();
     println!("ray_dir center: {:?}", ray_dir);
     s.cameras.push(cam);
 

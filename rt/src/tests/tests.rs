@@ -7,6 +7,7 @@ mod test_dummy_renders {
     use crate::tests::lights_and_multi_object_scene::get_lights_and_multi_objects_scene;
     use crate::tests::mocks::{get_dummy_scene, get_simple_cube_scene, get_simple_plane_scene};
     use crate::tests::room_and_spheres::get_scene_room_and_sphere;
+    use crate::tests::scene_import_tea_cups::get_imported_scene_tea_table;
     use crate::tests::teapot_from_obj::get_scene_teapot_obj;
     use crate::vector::arithmetic::VectorArithmetic;
     use crate::vector::constants::WORLD_Z;
@@ -36,8 +37,8 @@ mod test_dummy_renders {
             panic!("error={:?}", result.err().unwrap());
         }
         let cam = s.get_default_camera().unwrap();
-        let expected_forward = cam.transform.local.rotate.rotate_vec3f(&WORLD_Z);
-        let origin  = (Vec3f::default() - cam.transform.local.translate).normalized();
+        let expected_forward = cam.transform.rotate.rotate_vec3f(&WORLD_Z);
+        let origin  = (Vec3f::default() - cam.transform.translate).normalized();
         let dot_product = VectorArithmetic::dot(&expected_forward, &origin);
     }
 
@@ -52,8 +53,8 @@ mod test_dummy_renders {
             panic!("error={:?}", result.err().unwrap());
         }
         let cam = s.get_default_camera().unwrap();
-        let expected_forward = cam.transform.local.rotate.rotate_vec3f(&WORLD_Z);
-        let origin  = (Vec3f::default() - cam.transform.local.translate).normalized();
+        let expected_forward = cam.transform.rotate.rotate_vec3f(&WORLD_Z);
+        let origin  = (Vec3f::default() - cam.transform.translate).normalized();
         let dot_product = VectorArithmetic::dot(&expected_forward, &origin);
     }
     #[test]
@@ -98,6 +99,14 @@ mod test_dummy_renders {
     #[test]
     fn test_scene_teapot_obj_regional() {
         let s = get_scene_teapot_obj();
+
+        let mut renderer = Renderer::new(Arc::new(RwLock::new(s)));
+
+        _ = renderer.render(Some(RenderRegion::new(300, 300, 300, 300)));
+    }
+    #[test]
+    fn test_json_get_imported_scene_tea_table_regional() {
+        let s = get_imported_scene_tea_table();
 
         let mut renderer = Renderer::new(Arc::new(RwLock::new(s)));
 

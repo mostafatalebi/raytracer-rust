@@ -60,7 +60,6 @@ pub struct RayContext {
     pub extra_params: Option<Params>,
     pub memory_buffer: Option<Params>,
     pub previous_closest_distance: f64,
-    pub obj_receive_shadow: bool,
     pub obj_cast_reflection: bool,
     pub reflection_max_depth: u8,
     pub reflection_max_sample: u16,
@@ -138,7 +137,6 @@ impl RayContext {
         self.intersection_distance = f64::MAX;
 
         self.previous_closest_distance = f64::MAX;
-        self.obj_receive_shadow = false;
         self.reflection_current_level = 0;
         self.is_in_shadow = false;
 
@@ -148,7 +146,6 @@ impl RayContext {
     pub fn refresh_for_new_object_test(&mut self, obj_index: usize, receive_shadow: bool) {
         self.intersected = false;
         self.next_object_index = Some(obj_index);
-        self.obj_receive_shadow = receive_shadow;
     }
 
 
@@ -267,7 +264,6 @@ impl Default for RayContext {
             intersected: false,
             ever_intersected: false,
             previous_closest_distance: f64::INFINITY,
-            obj_receive_shadow: false,
             obj_cast_reflection: true,
             reflection_max_depth: 2,
             reflection_max_sample: MAX_REFLECTION_SAMPLES,

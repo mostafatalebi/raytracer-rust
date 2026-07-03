@@ -1,5 +1,4 @@
 use crate::camera::camera::StandardCamera;
-use crate::common::helpers::create_sphere;
 use crate::light::ambient_light::AmbientLight;
 use crate::light::light::LightEnum;
 use crate::light::point_light::PointLight;
@@ -12,9 +11,10 @@ use crate::shader::lambert::LambertShader;
 use crate::shader::phong::PhongShader;
 use crate::shader::shader::{BaseShader, ShaderEnum};
 use crate::colors::types::Color;
-use crate::vector::constants::{CAST_DAY, CYAN, FAINT_BLUE_WHITE, FAINT_GREEN, GRAY, MAGENTA, SKY_BLUE, SUN, WHITE, WORLD_UP};
-use crate::vector::types::{Vec2i, Vec3i, Vector, SENSOR_SQUARE_66};
+use crate::vector::constants::{FAINT_BLUE_WHITE, FAINT_GREEN, GRAY, MAGENTA, SUN, WHITE, WORLD_UP};
+use crate::vector::types::{Vec2i, Vector, SENSOR_SQUARE_66};
 use crate::vector::vec3f::Vec3f;
+use crate::vector::vec3i::Vec3i;
 
 pub fn get_lights_and_multi_objects_scene() -> Scene {
     let mut s = Scene::default();
@@ -60,7 +60,7 @@ pub fn get_lights_and_multi_objects_scene() -> Scene {
     let mut sphere = create_procedural_sphere(Vec3f::new(0.0,0.0,0.0), 5.0);
 
 
-    sphere.transform.move_local(-15.0, 0.0, 0.0);
+    sphere.transform.move_params(-15.0, 0.0, 0.0);
     sphere.apply_transformations();
     sphere.assign_shader(&phong.get_id());
     s.geometries.push(sphere);
@@ -79,17 +79,17 @@ pub fn get_lights_and_multi_objects_scene() -> Scene {
     plane.calc_all_normals();
 
     plane.assign_shader(&lambert_green.get_id());
-    plane.transform.move_local(0.0,-5.0,-18.0);
-    plane.transform.scale_local(2.0,1.0,1.0);
+    plane.transform.move_params(0.0, -5.0, -18.0);
+    plane.transform.scale(2.0, 1.0, 1.0);
     plane.apply_transformations();
 
 
     let mut point_light = PointLight::new("point_light_1", 0.8, Color::r_to_n(&FAINT_BLUE_WHITE), Attenuation::Linear);
-    point_light.transform.move_local(5.0, 30.0, 20.0);
+    point_light.transform.move_params(5.0, 30.0, 20.0);
 
     let mut point_light2 = PointLight::new("point_light_2", 5.0, Color::r_to_n(&SUN),Attenuation::Quadratic);
 
-    point_light2.transform.move_local(-5.0, 20.0, 0.0);
+    point_light2.transform.move_params(-5.0, 20.0, 0.0);
 
     let ambient_light = AmbientLight::new("ambient_light_1", 0.35, Color::r_to_n(&WHITE));
 
@@ -109,8 +109,8 @@ pub fn get_lights_and_multi_objects_scene() -> Scene {
     s.shaders.push(lambert);
     s.shaders.push(phong);
     s.shaders.push(lambert_green);
-    cam.lock_to(cube.clone().transform.local.translate);
-    cam.transform.move_local(0.0,10.0,0.0);
+    cam.lock_to(cube.clone().transform.translate);
+    cam.transform.move_params(0.0, 10.0, 0.0);
     // cam.pan(0.0, -5.0);
     cam.configure();
     s.geometries.push(cube.clone());
@@ -124,7 +124,7 @@ pub fn get_lights_and_multi_objects_scene() -> Scene {
     let center_pixel = cam.clone().get_pixel_coordinates(100, 100);
     println!("center pixel_coord: {:?}", center_pixel);
     let pixel_coord = cam.get_pixel_coordinates(100, 100);
-    let ray_dir = (&pixel_coord - &cam.transform.local.translate).normalized();
+    let ray_dir = (&pixel_coord - &cam.transform.translate).normalized();
     println!("ray_dir center: {:?}", ray_dir);
     s.cameras.push(cam);
 

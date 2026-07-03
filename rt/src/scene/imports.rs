@@ -2,6 +2,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub enum SceneImportTypes {
+    #[serde(rename = "obj")]
     Obj,
 }
 

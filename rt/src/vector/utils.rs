@@ -1,11 +1,9 @@
 use std::ops::{Div, Index, IndexMut, Mul, Sub};
-use std::process::Output;
 use crate::common::constants::EPS;
 use crate::common::types::ToF64;
-use crate::vector::types::{Vec2i, Vec3i, Vector};
+use crate::vector::types::{Vec2i, Vector};
 use crate::vector::vec2f::Vec2f;
 use crate::vector::vec3f::Vec3f;
-
 pub struct Utils {}
 
 
@@ -39,7 +37,7 @@ impl Utils {
     }
 
 
-    pub fn calc_vertices_normal(bc_u: f64, bc_v: f64, normals: &Vec<Vec3f>) -> Vec3f {
+    pub fn calc_vertices_normal(bc_u: f64, bc_v: f64, normals: &[Vec3f; 3]) -> Vec3f {
         let w = 1.0 - bc_u - bc_v;
 
         ((normals[0] * w) + (normals[1] * bc_u) + (normals[2] * bc_v)).normalized()

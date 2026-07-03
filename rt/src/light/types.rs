@@ -8,9 +8,13 @@ pub const SPOT_LIGHT: i8 = 6;
 
 #[derive(Copy, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub enum Attenuation {
+    #[serde(rename = "flat")]
     #[default]
     Flat,
+    #[serde(rename = "linear")]
     Linear,
+    #[serde(rename = "quadratic")]
     Quadratic,
+    #[serde(rename = "cube")]
     Cube
 }

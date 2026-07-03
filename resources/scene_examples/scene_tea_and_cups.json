@@ -1,0 +1,224 @@
+{
+  "version": "0.1",
+  "geometries" : {
+    "type" : "obj",
+    "path" : "../resources/obj_files/table_mug_cup.obj"
+  },
+  "lights": [
+    {
+      "light_type": "area",
+      "id": "area_light_1",
+      "intensity": 30,
+      "attenuation": "linear",
+      "width" : 30,
+      "height" : 30,
+      "shadow_samples" : 12,
+      "visible" : true,
+      "flip_normals" : true,
+      "shape" : "disk",
+      "shape_color" : [255,255,255],
+      "radius" : 1.0,
+      "color": [
+        50,
+        250,
+        300
+      ],
+      "transform": {
+        "translate": [
+          5,
+          10,
+          10
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotate": [
+          -30,
+          0,
+          10
+        ]
+      }
+    }
+  ],
+  "cameras": [
+    {
+      "camera_type": "standard",
+      "id": "camera_01",
+      "focal_length": 50.0,
+      "aspect_ratio": 1.0,
+      "look_at": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "transform": {
+        "translate": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotate": [
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "shaders": [
+    {
+      "shader_type": "lambert",
+      "id": "floor_lambert",
+      "diffuse": [200, 200, 200],
+      "opacity" : 1.0
+    },
+    {
+      "shader_type": "phong",
+      "id": "table_top_phong",
+      "diffuse": [ 128, 88, 33],
+      "opacity" : 1.0,
+      "specularity" : {
+        "factor" : 0.5,
+        "color" : [255,255,255],
+        "opacity" : 1.0
+      },
+      "reflection" : {
+        "amount" : 0.3,
+        "glossiness" : 0.7
+      }
+    },
+    {
+      "shader_type": "phong",
+      "id": "kettle_phong",
+      "diffuse": [ 40, 40, 40],
+      "opacity" : 1.0,
+      "specularity" : {
+        "factor" : 0.5,
+        "color" : [255,255,255],
+        "opacity" : 1.0
+      },
+      "reflection" : {
+        "amount" : 0.5,
+        "glossiness" : 0.1
+      }
+    },
+    {
+      "shader_type": "phong",
+      "id": "cup_white",
+      "diffuse": [ 240, 240, 240],
+      "opacity" : 1.0,
+      "specularity" : {
+        "factor" : 0.3,
+        "color" : [255,255,255],
+        "opacity" : 1.0
+      },
+      "reflection" : {
+        "amount" : 0.2,
+        "glossiness" : 0.1
+      }
+    },
+    {
+      "shader_type": "phong",
+      "id": "cup_light_orange_phong",
+      "diffuse": [ 237, 151, 87],
+      "opacity" : 1.0,
+      "specularity" : {
+        "factor" : 0.3,
+        "color" : [255,255,255],
+        "opacity" : 1.0
+      },
+      "reflection" : {
+        "amount" : 0.3,
+        "glossiness" : 0.1
+      }
+    },
+    {
+      "shader_type": "phong",
+      "id": "cup_light_green_phong",
+      "diffuse": [ 141, 181, 109],
+      "opacity" : 1.0,
+      "specularity" : {
+        "factor" : 0.3,
+        "color" : [255,255,255],
+        "opacity" : 1.0
+      },
+      "reflection" : {
+        "amount" : 0.3,
+        "glossiness" : 0.1
+      }
+    },
+    {
+      "shader_type": "phong",
+      "id": "cup_light_blue_phong",
+      "diffuse": [ 133, 197, 237],
+      "opacity" : 1.0,
+      "specularity" : {
+        "factor" : 0.3,
+        "color" : [255,255,255],
+        "opacity" : 1.0
+      },
+      "reflection" : {
+        "amount" : 0.3,
+        "glossiness" : 0.1
+      }
+    }
+
+  ],
+  "shaders_assignment" : {
+    "table_top_phong" : [
+      "table_top"
+    ],
+    "kettle_phong" : [
+      "kettle"
+    ],
+    "cup_white" : [
+      "cup_001", "cup_002"
+    ],
+    "cup_light_orange_phong" : [
+      "cup_003"
+    ],
+    "cup_light_green_phong" : [
+      "mug_001"
+    ],
+    "cup_light_blue_phong" : [
+      "mug_002"
+    ]
+  },
+  "render_settings":{
+    "width": 500,
+    "height": 500,
+    "shadow_enabled": true,
+    "output_dir": "../tmp/output",
+    "anti_aliasing" : {
+      "method" : "monte_carlo",
+      "sample" : 1
+    },
+    "file_name": "imported_teapot_obj{#}",
+    "file_ext": ".jpg",
+    "camera": "camera_01",
+    "multi_threading" : {
+      "enabled" : false,
+      "count" : 2
+    },
+    "environment" : {
+      "enabled": false,
+      "image_path": "../resources/images/pexels-curtis-adams-1694007-10164897.jpg",
+      "repeat_u": 4,
+      "repeat_v": 2,
+      "flipped_vertically": false,
+      "flipped_horizontally": true,
+      "rotate_y": -40
+    },
+    "smooth_shading": true,
+    "disable_reflections" : true,
+    "disable_shadows" : false
+  },
+  "misc": {}
+}

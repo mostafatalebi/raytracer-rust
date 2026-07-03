@@ -1,75 +1,48 @@
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use crate::matrix::column_major_trait::ColumnMajor;
 use crate::matrix::m4x4::Matrix4x4;
 use crate::quaternion::quaternion::Quaternion;
 use crate::vector::vec3f::Vec3f;
 
+
+
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Transform {
-    pub local: TransformAttributes,
-    pub world: TransformAttributes,
-    pub pivot: Vec3f,
-
+    pub translate: Vec3f,
+    #[serde(deserialize_with = "deserialize_rotate")]
+    pub rotate: Quaternion,
+    pub scale: Vec3f
 }
 
+
 impl Transform {
-    pub fn set_world(&mut self, world: TransformAttributes) {
-        self.world = world;
+    pub fn move_params(&mut self, x_unit: f64, y_unit: f64, z_unit: f64) {
+        self.translate[0] += x_unit;
+        self.translate[1] += y_unit;
+        self.translate[2] += z_unit;
     }
 
-    pub fn set_world_rotate(&mut self, translate: Vec3f) {
-        self.world.rotate = Quaternion::new_from_euler(&translate);
-    }
-    pub fn set_local_rotate(&mut self, translate: Vec3f) {
-        self.local.rotate = Quaternion::new_from_euler(&translate);
-    }
-    pub fn set_world_scale(&mut self, translate: Vec3f) {
-        self.world.scale = translate;
-    }
-    pub fn set_local_scale(&mut self, translate: Vec3f) {
-        self.local.scale = translate;
-    }
-    pub fn set_local(&mut self, local: TransformAttributes) {
-        self.world = local;
+    pub fn move_vec3f(&mut self, add: &Vec3f) {
+        self.translate[0] += add[0];
+        self.translate[1] += add[1];
+        self.translate[2] += add[2];
     }
 
-    pub fn move_world(&mut self, x_unit: f64, y_unit: f64, z_unit: f64) {
-        self.world.translate[0] += x_unit;
-        self.world.translate[1] += y_unit;
-        self.world.translate[2] += z_unit;
+
+    pub fn rotate(&mut self, r: Vec3f) {
+        let q = Quaternion::new_from_euler(&r);
+        self.rotate = (self.rotate * q).normalize()
     }
 
-    pub fn move_world_vec3f(&mut self, add: &Vec3f) {
-        self.world.translate[0] += add[0];
-        self.world.translate[1] += add[1];
-        self.world.translate[2] += add[2];
-    }
 
-    pub fn move_local(&mut self, x_unit: f64, y_unit: f64, z_unit: f64) {
-        self.local.translate[0] += x_unit;
-        self.local.translate[1] += y_unit;
-        self.local.translate[2] += z_unit;
-    }
-
-    pub fn move_local_vec3f(&mut self, add: &Vec3f) {
-        self.local.translate[0] += add[0];
-        self.local.translate[1] += add[1];
-        self.local.translate[2] += add[2];
-    }
-
-    pub fn rotate_world(&mut self, x_unit: f64, y_unit: f64, z_unit: f64) {
+    pub fn rotate_by(&mut self, x_unit: f64, y_unit: f64, z_unit: f64) {
         let q = Quaternion::new_from_euler(&Vec3f::new(x_unit, y_unit, z_unit));
-        self.world.rotate *= &q
-    }
-
-    pub fn rotate_local(&mut self, x_unit: f64, y_unit: f64, z_unit: f64) {
-        let q = Quaternion::new_from_euler(&Vec3f::new(x_unit, y_unit, z_unit));
-        self.local.rotate = (self.local.rotate * q).normalize()
+        self.rotate = (self.rotate * q).normalize()
     }
 
     pub fn get_u_v_dir(&mut self, w: f64, h: f64, u: &Vec3f, v: &Vec3f) -> (Vec3f, Vec3f, Vec3f, Vec3f) {
-        let u_dir = self.local.rotate.rotate_vec3f(u);
-        let v_dir = self.local.rotate.rotate_vec3f(v);
+        let u_dir = self.rotate.rotate_vec3f(u);
+        let v_dir = self.rotate.rotate_vec3f(v);
 
         let u_vec = u_dir * w;
         let v_vec = v_dir * h;
@@ -77,42 +50,32 @@ impl Transform {
         (u_dir, v_dir, u_vec, v_vec)
     }
 
-    pub fn scale_world(&mut self, x_unit: f64, y_unit: f64, z_unit: f64) {
-        self.world.scale[0] += x_unit;
-        self.world.scale[1] += y_unit;
-        self.world.scale[2] += z_unit;
-    }
 
-    pub fn scale_local(&mut self, x_unit: f64, y_unit: f64, z_unit: f64) {
-        self.local.scale[0] += x_unit;
-        self.local.scale[1] += y_unit;
-        self.local.scale[2] += z_unit;
-    }
-
-
-    pub fn set_pivot(&mut self, v: &Vec3f) {
-        self.pivot = v.clone();
+    pub fn scale(&mut self, x_unit: f64, y_unit: f64, z_unit: f64) {
+        self.scale[0] += x_unit;
+        self.scale[1] += y_unit;
+        self.scale[2] += z_unit;
     }
 
 
 
 
     pub fn get_m4x4(&self) -> Matrix4x4 {
-        let mut r = self.local.rotate.to_m3x3();
+        let mut r = self.rotate.to_m3x3();
 
-        r.cm_mul(0, 0, self.local.scale[0]);
-        r.cm_mul(0, 1, self.local.scale[0]);
-        r.cm_mul(0, 2, self.local.scale[0]);
+        r.cm_mul(0, 0, self.scale[0]);
+        r.cm_mul(0, 1, self.scale[0]);
+        r.cm_mul(0, 2, self.scale[0]);
 
-        r.cm_mul(1, 0, self.local.scale[1]);
-        r.cm_mul(1, 1, self.local.scale[1]);
-        r.cm_mul(1, 2, self.local.scale[1]);
+        r.cm_mul(1, 0, self.scale[1]);
+        r.cm_mul(1, 1, self.scale[1]);
+        r.cm_mul(1, 2, self.scale[1]);
 
-        r.cm_mul(2, 0, self.local.scale[2]);
-        r.cm_mul(2, 1, self.local.scale[2]);
-        r.cm_mul(2, 2, self.local.scale[2]);
+        r.cm_mul(2, 0, self.scale[2]);
+        r.cm_mul(2, 1, self.scale[2]);
+        r.cm_mul(2, 2, self.scale[2]);
 
-        Matrix4x4::from_m3x3(&r, &Vec3f::new(0.0,0.0,0.0), &self.local.translate, 1.0)
+        Matrix4x4::from_m3x3(&r, &Vec3f::new(0.0,0.0,0.0), &self.translate, 1.0)
     }
 
 
@@ -152,27 +115,24 @@ impl Transform {
 
 impl Default for Transform {
     fn default() -> Self {
-        Transform{
-            local: TransformAttributes::default(),
-            world: TransformAttributes::default(),
-            pivot: Vec3f::new(0.0, 0.0, 0.0),
-        }
-    }
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct TransformAttributes {
-    pub translate: Vec3f,
-    pub rotate: Quaternion,
-    pub scale: Vec3f
-}
-
-impl Default for TransformAttributes {
-    fn default() -> Self {
         Self {
             translate: Vec3f::default(),
             rotate: Quaternion::default(),
             scale: Vec3f::new(1.0, 1.0, 1.0),
         }
     }
+}
+
+
+pub fn deserialize_rotate<'de, D>(deserializer: D) -> Result<Quaternion, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let res = Vec3f::deserialize(deserializer);
+
+    if res.is_err() {
+        return Err(serde::de::Error::custom("rotate deserialize failed"));
+    }
+
+    Ok(Quaternion::new_from_euler(&res.unwrap()))
 }

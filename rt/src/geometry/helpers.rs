@@ -1,6 +1,6 @@
 use crate::common::id::AutoId;
 use crate::geometry::geometry::Geometry;
-use crate::vector::types::Vec3i;
+use crate::vector::vec3i::Vec3i;
 use crate::vector::vec3f::Vec3f;
 
 pub fn create_cube(width: f64, height: f64, thickness: f64) -> Geometry {

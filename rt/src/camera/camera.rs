@@ -86,7 +86,7 @@ impl StandardCamera {
         };
 
         if let Some(o) = origin {
-            c.transform.local.translate = o;
+            c.transform.translate = o;
         }
 
 
@@ -152,20 +152,20 @@ impl StandardCamera {
 
     pub fn configure_orientation(&mut self) {
         if let Some(look_at) = self.look_at {
-            self.transform.local.rotate = Quaternion::look_at(&self.transform.local.translate, &look_at, &WORLD_UP);
+            self.transform.rotate = Quaternion::look_at(&self.transform.translate, &look_at, &WORLD_UP);
         }
         self.update_basis_axis();
     }
 
     fn update_basis_axis(&mut self) {
-        self.forward = self.transform.local.rotate.rotate_vec3f(&WORLD_Z);
-        self.right = self.transform.local.rotate.rotate_vec3f(&WORLD_RIGHT);
-        self.up = self.transform.local.rotate.rotate_vec3f(&WORLD_UP);
+        self.forward = self.transform.rotate.rotate_vec3f(&WORLD_Z);
+        self.right = self.transform.rotate.rotate_vec3f(&WORLD_RIGHT);
+        self.up = self.transform.rotate.rotate_vec3f(&WORLD_UP);
     }
 
 
-    pub fn get_anti_aliased_pixel_coordinates(&self, i: i64, j: i64, anti_aliasing: u8, method: &AntiAliasingMethod) -> Vec<Vec3f> {
-        let mut pixels = vec![Vec3f::default(); anti_aliasing as usize];
+    pub fn get_anti_aliased_pixel_coordinates(&self, i: i64, j: i64, anti_aliasing: usize, method: &AntiAliasingMethod) -> Vec<Vec3f> {
+        let mut pixels = vec![Vec3f::default(); anti_aliasing];
         for k in 0..anti_aliasing {
             pixels[k as usize] = self.get_pixel_coordinates_with_sampler(i, j, k, anti_aliasing, &method);
         }
@@ -173,7 +173,7 @@ impl StandardCamera {
         pixels
     }
 
-    fn get_pixel_coordinates_with_sampler(&self, i: i64, j: i64, k: u8, total_samples_count: u8, method: &AntiAliasingMethod) -> Vec3f {
+    fn get_pixel_coordinates_with_sampler(&self, i: i64, j: i64, k: usize, total_samples_count: usize, method: &AntiAliasingMethod) -> Vec3f {
         let i_sample: f64;
         let j_sample: f64;
         match method {
@@ -195,7 +195,7 @@ impl StandardCamera {
         let x = screen_space[0] * self.aspect_ratio * scale;
         let y = screen_space[1] * scale;
 
-        self.transform.local.translate
+        self.transform.translate
             .add_with(&self.forward)
             .add_with(&self.right.multiply_scalar(x))
             .add_with(&self.up.multiply_scalar(y))
@@ -210,7 +210,7 @@ impl StandardCamera {
         let x = screen_space[0] * self.aspect_ratio * scale;
         let y = screen_space[1] * scale;
 
-        self.transform.local.translate
+        self.transform.translate
             .add_with(&self.forward)
             .add_with(&self.right.multiply_scalar(x))
             .add_with(&self.up.multiply_scalar(y))
@@ -267,7 +267,7 @@ impl StandardCamera {
     pub fn pan(&mut self, x: f64, y: f64) {
         if let Some(ref mut look_at) = self.look_at {
             let offset = Vec3f::new(x, y, 0.0);
-            self.transform.local.translate += offset;
+            self.transform.translate += offset;
             *look_at += offset;
         }
     }

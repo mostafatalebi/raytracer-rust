@@ -59,7 +59,7 @@ impl BaseLight for PointLight {
 
 
     fn get_displacement_vector(&self, to: Option<&Vec3f>, from: &Vec3f) -> Vec3f {
-        (&self.transform.local.translate - from)
+        (&self.transform.translate - from)
     }
 
     fn get_transform(&self) -> Transform {

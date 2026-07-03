@@ -11,3 +11,8 @@ pub const MAX_REFLECTION_SAMPLES: u16 = 16;
 /// value keeps the blurriness more focused.
 /// Cannot be zero
 pub const REFLECTION_GLOSSINESS_SCATTER_FACTOR: NormalizedF = 0.5;
+
+pub const BVH_LEAF_SIZE_FOR_OBJECTS: usize = 2;
+
+// with some simple testing, value 12
+pub const BVH_LEAF_SIZE_FOR_TRIANGLES: usize = 24;

@@ -2,12 +2,17 @@ use std::iter::Sum;
 use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Sub};
 use std::str::FromStr;
 use serde::{Deserialize, Serialize};
+use crate::bounding_box::aabb::{Bounded, AABB};
+use crate::common::volume::Centroid;
 use crate::common::constants::EPS;
+use crate::common::id::Id;
 use crate::error::error::SysError;
 use crate::error::kinds::ErrorKind;
+use crate::geometry::geometry::Geometry;
 use crate::vector::arithmetic::VectorArithmetic;
 use crate::vector::types::{DirVec, Vector};
 use crate::vector::utils::Utils;
+use crate::vector::vec3i::Vec3i;
 use crate::vector::vec4f::Vec4f;
 
 // a 3-dimensional position vector holding x,y,z
@@ -32,7 +37,12 @@ impl Vector<f64> for Vec3f {
 
     #[inline(always)]
     fn multiply_scalar(&self, other: f64) -> Self {
-        VectorArithmetic::multiply_scalar(self, other)
+        let mut v = Vec3f::default();
+        v[0] = self[0] * other;
+        v[1] = self[1] * other;
+        v[2] = self[2] * other;
+
+        v
     }
 
     #[inline(always)]
@@ -125,6 +135,15 @@ impl Vec3f {
             self[2]* rhs[0] - self[0]* rhs[2],
             self[0]* rhs[1] - self[1] * rhs[0]
         ])
+    }
+
+
+    #[inline(always)]
+    pub fn dot(&self, rhs: &Self) -> f64 {
+        let mut sum = self[0] * rhs[0];
+        sum += self[1] * rhs[1];
+        sum += self[2] * rhs[2];
+        sum
     }
 
     fn hat(&self) -> Self {
@@ -450,6 +469,22 @@ impl TryFrom<Vec<f64>> for Vec3f {
         }
 
         Ok(Self([v[0], v[1], v[2]]))
+    }
+}
+
+
+impl Centroid for [Vec3f; 3] {
+    fn get_centroid(&self) -> Vec3f {
+        self.iter().sum::<Vec3f>().divide_by_scalar(3.0)
+    }
+}
+
+
+impl Bounded for [Vec3f; 3] {
+    fn get_bb(&self) -> AABB {
+        let min = self[0].min(&self[1]).min(&self[2]);
+        let max = self[0].max(&self[1]).max(&self[2]);
+        AABB::new(min, max)
     }
 }
 

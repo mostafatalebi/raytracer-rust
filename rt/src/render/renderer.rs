@@ -58,6 +58,7 @@ impl<'b> Renderer<'b> {
         let bvh = scene.bvh_tree.as_ref().unwrap().clone();
         render_settings = scene.render_settings.clone();
         let geometries = scene.geometries.clone();
+        let env = scene.render_settings.environment.clone();
         std::mem::drop(scene);
 
         buffer = Buffer::new(render_settings.width, render_settings.height);
@@ -65,12 +66,19 @@ impl<'b> Renderer<'b> {
             Some(c) => {
 
                 let rt = &mut (self.rt.clone());
+                if env.is_some() {
+                    rt.set_environment(env.unwrap());
+                }
                 rt.set_geometries(&geometries);
                 rt.set_bvh_tree(&bvh);
-                self.stats.set_num_of_threads(render_settings.mt_num_of_threads);
+                if render_settings.multi_threading.enabled {
+                    self.stats.set_num_of_threads(render_settings.multi_threading.count);
+                }
                 self.stats.record_start_time();
-                rt.set_anti_aliasing(render_settings.anti_aliasing, render_settings.anti_aliasing_method);
-                rt.set_num_of_threads(render_settings.mt_num_of_threads);
+                rt.set_anti_aliasing(&render_settings.anti_aliasing);
+                if render_settings.multi_threading.enabled {
+                    rt.set_num_of_threads(render_settings.multi_threading.count);
+                }
                 Self::show_render_progression(rt.total_rays_to_process.clone(), rt.rays_processed_sofar.clone());
                 let output: Buffer;
                 match rt.trace_from_camera_to_scene(&mut buffer, &c, self.scene.clone(), render_region) {

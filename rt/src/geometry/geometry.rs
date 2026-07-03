@@ -2,13 +2,200 @@ use std::fmt;
 use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::bounding_box::aabb::AABB;
+use crate::bounding_box::aabb::{Bounded, AABB};
+use crate::bounding_box::bvh::BvhNode;
+use crate::common::constants::BVH_LEAF_SIZE_FOR_TRIANGLES;
+use crate::common::volume::Centroid;
 use crate::common::id::{AutoId, Id};
 use crate::common::params::Params;
 use crate::common::transform::Transform;
-use crate::vector::types::{Vec3i, Vector};
+use crate::common::types::EnrichedFace;
+use crate::vector::types::Vector;
 use crate::scene::render_attributes::RenderAttributes;
 use crate::vector::vec3f::Vec3f;
+use crate::vector::vec3i::Vec3i;
+
+#[derive(Default, Clone)]
+pub struct Geometry {
+    pub geometry_type: GeometryType,
+    pub geometry_subtype: GeometrySubType,
+    centroid: Vec3f,
+    pub id: String,
+    pub transform: Transform,
+    pub render_attributes: RenderAttributes,
+    pub(crate) bounding_box: AABB,
+    pub data: GeometryData,
+    pub bvh_tree: Option<BvhNode>
+}
+
+impl Geometry {
+
+    // when doing move, rotate and scale, a call to this function
+    // is needed to apply the actual transformation to the geometry,
+    // otherwise most of the transformation values will be ignored
+    // in the final render
+    pub fn apply_transformations(&mut self) {
+        self.data.vertices = self.transform.run_transform_pipeline(&self.data.vertices);
+        self.calc_bounding_volume();
+        self.calculate_centroid();
+    }
+
+    pub fn assign_shader(&mut self, material_name: &str) {
+        self.render_attributes.material_name = material_name.to_string();
+    }
+
+    pub fn calc_all_normals(&mut self) {
+        if self.geometry_type != GeometryType::Polygon {
+            return;
+        }
+        self.calc_face_normals();
+        self.compute_vertices_normals();
+    }
+    pub fn prepare_geometry(&mut self) {
+        self.apply_transformations();
+        // self.calc_all_normals();
+    }
+
+
+    pub fn set_centroid_manually(&mut self, c: Vec3f) {
+        self.centroid = c;
+    }
+
+    fn calculate_centroid(&mut self) {
+        if self.geometry_type != GeometryType::Polygon {
+            return;
+        }
+        let mut centroid = Vec3f::default();
+        let mut total_area = 0.0;
+        for face in &self.data.faces {
+            let v1 = self.data.vertices[face[0] as usize];
+            let v2 = self.data.vertices[face[1] as usize];
+            let v3 = self.data.vertices[face[2] as usize];
+            let area = 0.5 * &(&v2 - &v1).cross3(&(&v3 - &v1)).magnitude();
+
+            let triangular_centroid = (v1+v2+v3).divide_by_scalar(3.0);
+
+            centroid += triangular_centroid*area;
+            total_area += area;
+        }
+
+        self.centroid = centroid.divide_by_scalar(total_area)
+    }
+
+    pub fn calc_face_normals(&mut self) {
+        if self.geometry_type != GeometryType::Polygon {
+            return;
+        }
+        self.data.face_normals = vec![Vec3f::default(); self.data.faces.len()];
+        for face in self.data.faces.iter().enumerate() {
+            self.data.face_normals[face.0] = self.calc_single_face_normal(&face.1);
+        }
+    }
+
+    #[inline(always)]
+    pub fn calc_single_face_normal(&self, v: &Vec3i) -> Vec3f {
+        let vx0 = self.data.vertices[v[0] as usize];
+        let vx1 = self.data.vertices[v[1] as usize];
+        let vx2 = self.data.vertices[v[2] as usize];
+
+        let edge1 = vx1 - vx0;
+        let edge2 = vx2 - vx0;
+        (&edge1).cross3(&edge2).normalized()
+    }
+
+    /// This fn must only be called when face normals
+    /// are ready. Face normals either are computed using calc_face_normals()
+    /// or imported externally or inserted manually.
+    pub fn compute_vertices_normals(&mut self) {
+        if self.geometry_type != GeometryType::Polygon {
+            return;
+        }
+        let mut v_normals = vec![Vec3f::default(); self.data.vertices.len()];
+        self.data.face_to_v_normals = vec![Vec3i::default(); self.data.faces.len()];
+
+        for (face_index, vertices) in self.data.faces.iter().enumerate() {
+            let vn = self.data.face_normals[face_index];
+            v_normals[vertices[0] as usize] += vn;
+            v_normals[vertices[1] as usize] += vn;
+            v_normals[vertices[2] as usize] += vn;
+
+            let f_to_v_normal = Vec3i::new(vertices[0], vertices[2], vertices[2]);
+            self.data.face_to_v_normals[face_index] = f_to_v_normal;
+        }
+
+        for n in &mut v_normals {
+            *n = n.normalized()
+        }
+
+        self.data.vertex_normals = v_normals
+
+    }
+
+    fn calc_bounding_volume(&mut self) {
+        if self.geometry_type == GeometryType::Polygon {
+            self.bounding_box = AABB::calc_bounding_volume_for_polygons(&self.data.vertices)
+        } else {
+            if self.geometry_subtype == GeometrySubType::Sphere {
+                self.bounding_box = AABB::calc_bounding_volume_for_proc_sphere(&self.centroid, self.data.params.get("radius").unwrap().v_f64);
+            }
+        }
+    }
+
+    pub fn get_bb(&self) -> AABB {
+        self.bounding_box.clone()
+    }
+
+    pub fn enable_smooth(&mut self) {
+        self.render_attributes.smooth.enable = true;
+    }
+
+    pub fn disable_smooth(&mut self) {
+        self.render_attributes.smooth.enable = false;
+    }
+
+    pub fn generate_bvh_tree(&mut self) {
+        let mut faces_enriched: Vec<EnrichedFace> = Vec::new();
+        for (k, v) in self.data.faces.iter().enumerate() {
+            let v0 = self.data.vertices[v[0] as usize];
+            let v1 = self.data.vertices[v[1] as usize];
+            let v2 = self.data.vertices[v[2] as usize];
+            faces_enriched.push(EnrichedFace(v.clone(), [v0, v1, v2]));
+            self.data._faces_computed.push([v0, v1, v2]);
+        }
+
+        let bvh_tree = BvhNode::create(&mut faces_enriched, BVH_LEAF_SIZE_FOR_TRIANGLES);
+        self.bvh_tree = Some(bvh_tree);
+    }
+}
+
+
+impl Id for Geometry {
+    fn get_id(&self) -> String {
+        self.id.clone()
+    }
+}
+
+
+impl AutoId for Geometry {
+    fn auto_id(&mut self) {
+        self.id = format!("geo::{}", Uuid::new_v4().to_string());
+    }
+}
+
+
+impl Centroid for Geometry {
+    fn get_centroid(&self) -> Vec3f {
+        self.centroid
+    }
+}
+
+
+impl Bounded for Geometry {
+    fn get_bb(&self) -> AABB {
+        self.bounding_box.clone()
+    }
+}
+
 
 #[derive(Deserialize, Serialize, Default, Clone, PartialEq, Debug)]
 pub enum GeometryType {
@@ -217,6 +404,14 @@ pub struct GeometryData {
     // it throws an error
     pub faces:    Vec<Vec3i>,
 
+    // this holds cached version of faces; holding the
+    // vertices data directly per face, reducing the lookup
+    // count during render significantly
+    // First element of this array is index of the vertices,
+    // the next three elements are actual vertex coordinates
+    // @todo this is temporary until we define a proper layout
+    pub _faces_computed:    Vec<[Vec3f; 3]>,
+
     // the sum of the values of each normal
     // entry must be 1 (it's a unit vector of size 3)
     pub face_normals:  Vec<Vec3f>,
@@ -229,159 +424,4 @@ pub struct GeometryData {
 
     #[serde(skip)]
     pub params: Params,
-}
-
-#[derive(Default, Clone)]
-pub struct Geometry {
-    pub geometry_type: GeometryType,
-    pub geometry_subtype: GeometrySubType,
-    centroid: Vec3f,
-    pub id: String,
-    pub transform: Transform,
-    pub render_attributes: RenderAttributes,
-    pub(crate) bounding_box: AABB,
-    pub data: GeometryData
-}
-
-impl Geometry {
-
-    // when doing move, rotate and scale, a call to this function
-    // is needed to apply the actual transformation to the geometry,
-    // otherwise most of the transformation values will be ignored
-    // in the final render
-    pub fn apply_transformations(&mut self) {
-        self.data.vertices = self.transform.run_transform_pipeline(&self.data.vertices);
-        self.calc_bounding_volume();
-        self.calculate_centroid();
-    }
-
-    pub fn assign_shader(&mut self, material_name: &str) {
-        self.render_attributes.material_name = material_name.to_string();
-    }
-
-    pub fn calc_all_normals(&mut self) {
-        if self.geometry_type != GeometryType::Polygon {
-            return;
-        }
-        self.calc_face_normals();
-        self.compute_vertices_normals();
-    }
-    pub fn prepare_geometry(&mut self) {
-        self.apply_transformations();
-        // self.calc_all_normals();
-    }
-
-
-    pub fn set_centroid_manually(&mut self, c: Vec3f) {
-        self.centroid = c;
-    }
-
-    fn calculate_centroid(&mut self) {
-        if self.geometry_type != GeometryType::Polygon {
-            return;
-        }
-        let mut centroid = Vec3f::default();
-        let mut total_area = 0.0;
-        for face in &self.data.faces {
-            let v1 = self.data.vertices[face[0] as usize];
-            let v2 = self.data.vertices[face[1] as usize];
-            let v3 = self.data.vertices[face[2] as usize];
-            let area = 0.5 * &(&v2 - &v1).cross3(&(&v3 - &v1)).magnitude();
-
-            let triangular_centroid = (v1+v2+v3).divide_by_scalar(3.0);
-
-            centroid += triangular_centroid*area;
-            total_area += area;
-        }
-
-        self.centroid = centroid.divide_by_scalar(total_area)
-    }
-
-    pub fn calc_face_normals(&mut self) {
-        if self.geometry_type != GeometryType::Polygon {
-            return;
-        }
-        self.data.face_normals = vec![Vec3f::default(); self.data.faces.len()];
-        for face in self.data.faces.iter().enumerate() {
-            self.data.face_normals[face.0] = self.calc_single_face_normal(&face.1);
-        }
-    }
-
-    #[inline(always)]
-    pub fn calc_single_face_normal(&self, v: &Vec3i) -> Vec3f {
-        let vx0 = self.data.vertices[v[0] as usize];
-        let vx1 = self.data.vertices[v[1] as usize];
-        let vx2 = self.data.vertices[v[2] as usize];
-
-        let edge1 = vx1 - vx0;
-        let edge2 = vx2 - vx0;
-        (&edge1).cross3(&edge2).normalized()
-    }
-
-    /// This fn must only be called when face normals
-    /// are ready. Face normals either are computed using calc_face_normals()
-    /// or imported externally or inserted manually.
-    pub fn compute_vertices_normals(&mut self) {
-        if self.geometry_type != GeometryType::Polygon {
-            return;
-        }
-        let mut v_normals = vec![Vec3f::default(); self.data.vertices.len()];
-        self.data.face_to_v_normals = vec![Vec3i::default(); self.data.faces.len()];
-
-        for (face_index, vertices) in self.data.faces.iter().enumerate() {
-            let vn = self.data.face_normals[face_index];
-            v_normals[vertices[0] as usize] += vn;
-            v_normals[vertices[1] as usize] += vn;
-            v_normals[vertices[2] as usize] += vn;
-
-            let f_to_v_normal = Vec3i::new(vertices[0], vertices[2], vertices[2]);
-            self.data.face_to_v_normals[face_index] = f_to_v_normal;
-        }
-
-        for n in &mut v_normals {
-            *n = n.normalized()
-        }
-
-        self.data.vertex_normals = v_normals
-
-    }
-
-    fn calc_bounding_volume(&mut self) {
-        if self.geometry_type == GeometryType::Polygon {
-            self.bounding_box = AABB::calc_bounding_volume_for_polygons(&self.data.vertices)
-        } else {
-            if self.geometry_subtype == GeometrySubType::Sphere {
-                self.bounding_box = AABB::calc_bounding_volume_for_proc_sphere(&self.centroid, self.data.params.get("radius").unwrap().v_f64);
-            }
-        }
-    }
-
-    pub fn get_centroid(&self) -> Vec3f {
-        self.centroid
-    }
-    pub fn get_bb(&self) -> AABB {
-        self.bounding_box.clone()
-    }
-
-    pub fn enable_smooth(&mut self) {
-        self.render_attributes.smooth.enable = true;
-    }
-
-    pub fn disable_smooth(&mut self) {
-        self.render_attributes.smooth.enable = false;
-    }
-}
-
-
-impl Id for Geometry {
-    fn get_id(&self) -> String {
-        self.id.clone()
-    }
-}
-
-
-impl AutoId for Geometry {
-    fn auto_id(&mut self) {
-        self.id = format!("geo::{}", Uuid::new_v4().to_string());
-    }
 }

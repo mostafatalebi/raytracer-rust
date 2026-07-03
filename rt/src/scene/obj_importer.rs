@@ -1,13 +1,11 @@
-use std::collections::HashMap;
 use std::str::FromStr;
 use crate::common::file::File;
 use crate::error::error::SysError;
 use crate::error::kinds::ErrorKind;
-use crate::error::kinds::ErrorKind::BadSceneDescription;
-use crate::geometry::geometry::{Geometry, GeometryData};
-use crate::scene::scene::Scene;
-use crate::vector::types::{Vec3i, Vector};
+use crate::geometry::geometry::Geometry;
+use crate::vector::types::Vector;
 use crate::vector::vec3f::Vec3f;
+use crate::vector::vec3i::Vec3i;
 
 pub struct ObjImporter {
 

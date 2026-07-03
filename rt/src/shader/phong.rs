@@ -17,19 +17,13 @@ use crate::vector::types::Vector;
 
 #[derive(Default, Deserialize, Serialize, Clone)]
 pub struct PhongShader {
-    shader_type: String,
     id: String,
     #[serde(skip_serializing, skip_deserializing)]
     diffuse: InputChannel,
     opacity: NormalizedF,
-    specularity_factor: NormalizedF,
-    specularity_color: NColor3,
-    specularity_opacity: NormalizedF,
-    reflection: NormalizedF,
-    reflection_glossiness: NormalizedF,
-    reflection_max_samples: u16,
+    specularity: SpecularitySetting,
+    reflection: ReflectionSetting
 }
-
 
 
 
@@ -58,26 +52,26 @@ impl BaseShader for PhongShader {
                 light_color = light_color.add_with(&Color::r_to_n(&BLACK))
             }
         }
-
-        let mut final_color = &light_color * &self.diffuse.get_true_color(Some(&params)) * self.opacity;
+        let diffuse = &self.diffuse.get_true_color(Some(&params));
+        let mut final_color = &light_color * diffuse * self.opacity;
         final_color = Color::n_clamp(&final_color);
         let spec_calculated = &self.compute_specularity(&dir_n, rc);
         return Ok(&final_color * &light_color.add_with(spec_calculated));
     }
 
     fn cast_reflection(&self) -> bool {
-        self.reflection > 0.0
+        self.reflection.amount > 0.0
     }
 
     fn set_reflection_properties(&self, rc: &mut RayContext) {
         let normal = rc.get_proper_normal();
         rc.ray_dir = rc.ray_dir - 2.0*rc.ray_dir.dot(&normal) * &normal;
         rc.reflection_glossiness_samples = self.get_reflection_samples();
-        rc.reflection_glossiness = self.reflection_glossiness
+        rc.reflection_glossiness = self.reflection.glossiness
     }
 
     fn get_reflection_final_color(&self, ref_color: &NColor3) -> NColor3 {
-        self.reflection * ref_color
+        self.reflection.amount * ref_color
     }
 }
 
@@ -85,7 +79,6 @@ impl PhongShader {
     fn default() -> Self {
         Self {
             opacity: 1.0,
-            reflection_max_samples: MAX_REFLECTION_SAMPLES,
             ..Default::default()
         }
     }
@@ -101,24 +94,19 @@ impl PhongShader {
     pub fn new_with_params(id: &str, diffuse: NColor3, opacity: NormalizedF, spec_factor: NormalizedF,
                            spec_color: NColor3, spec_opacity: NormalizedF, reflection: NormalizedF, reflection_glossiness: NormalizedF) -> Self {
         Self {
-            shader_type: "".to_string(),
             id: id.to_string(),
             diffuse: InputChannel::new_with_color(diffuse),
             opacity: opacity,
-            specularity_factor: spec_factor,
-            specularity_color: spec_color,
-            specularity_opacity: spec_opacity,
-            reflection: reflection,
-            reflection_glossiness,
-            reflection_max_samples: MAX_REFLECTION_SAMPLES,
+            specularity: SpecularitySetting::new(spec_factor, spec_color, spec_opacity),
+            reflection: ReflectionSetting::new(reflection, reflection_glossiness, MAX_REFLECTION_SAMPLES)
         }
     }
 
     fn compute_specularity(&self, light_dir: &Vec3f, rc: &RayContext) -> NColor3 {
         let normal = rc.get_proper_normal();
         let halfway = (light_dir + &(&rc.camera_position - &rc.intersection_coordinate).normalized()).normalized();
-        let spec = self.specularity_color * f64::max(0.0, VectorArithmetic::dot(&normal, &halfway)).powi(self.get_true_spec_factor(self.specularity_factor));
-        spec * self.specularity_color
+        let spec = self.specularity.color * f64::max(0.0, VectorArithmetic::dot(&normal, &halfway)).powi(self.get_true_spec_factor(self.specularity.factor));
+        spec * self.specularity.color
     }
 
     // converts the spec_factor value (which is limited from 0 to 1) to a proper
@@ -128,28 +116,28 @@ impl PhongShader {
     }
 
     fn get_reflection_samples(&self) -> i8 {
-        let true_ref = self.reflection_glossiness.clamp(0.0, 1.0);
+        let true_ref = self.reflection.glossiness.clamp(0.0, 1.0);
         if true_ref == 0.0 {
             return 1;
         }
-        (true_ref*self.reflection_max_samples as f64) as i8
+        (true_ref*self.reflection.max_samples as f64) as i8
     }
 
     pub fn set_specularity(&mut self, factor: NormalizedF, color: NColor3, opacity: NormalizedF) -> &mut Self {
-        self.specularity_factor = factor;
-        self.specularity_color = color;
-        self.specularity_opacity = opacity;
+        self.specularity.factor = factor;
+        self.specularity.color = color;
+        self.specularity.opacity = opacity;
 
         self
     }
     pub fn set_reflectivity(&mut self, reflectivity: NormalizedF) -> &mut Self {
-        self.reflection = reflectivity;
+        self.reflection.amount = reflectivity;
 
         self
     }
     pub fn set_reflection(&mut self, reflection: NormalizedF, glossiness: NormalizedF) -> &mut Self {
-        self.reflection = reflection;
-        self.reflection_glossiness = glossiness;
+        self.reflection.amount = reflection;
+        self.reflection.glossiness = glossiness;
 
         self
     }
@@ -179,5 +167,45 @@ impl PhongShader {
 
     pub fn get(&self) -> Self {
         self.clone()
+    }
+}
+
+#[derive(Default, Deserialize, Serialize, Clone)]
+pub struct SpecularitySetting {
+    factor: NormalizedF,
+    color: NColor3,
+    opacity: NormalizedF,
+}
+
+impl SpecularitySetting {
+    pub fn new(factor: NormalizedF, color: NColor3, opacity: NormalizedF) -> Self {
+        SpecularitySetting { factor, color, opacity }
+    }
+}
+#[derive(Deserialize, Serialize, Clone)]
+pub struct ReflectionSetting {
+    amount: NormalizedF,
+    glossiness: NormalizedF,
+
+    // @todo we skip importation of this for now
+    // it is sensible to use a global default
+    // for the time being.
+    #[serde(skip)]
+    max_samples: u16,
+}
+
+impl ReflectionSetting {
+    pub fn new(amount: NormalizedF, glossiness: NormalizedF, max_samples: u16) -> Self {
+        ReflectionSetting { amount, glossiness, max_samples }
+    }
+}
+
+impl Default for ReflectionSetting {
+    fn default() -> Self {
+        Self {
+            amount: 0.0,
+            glossiness: 0.0,
+            max_samples: MAX_REFLECTION_SAMPLES,
+        }
     }
 }
